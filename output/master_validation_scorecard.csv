@@ -1,0 +1,9 @@
+Validation Test,Realized Metric,Pass Threshold,Final Status
+Walk-Forward Efficiency,1.11,>= 0.60,PASS
+Deflated Sharpe Ratio (DSR),0.0000,> 0.9500,FAIL
+Monte Carlo P(DD > 40%),1.18%,< 5.0% - 10.0%,PASS
+Portfolio Return Correlation,-0.003,< 0.40,PASS
+Regime Consistency (16-Yr),76.5% (13/17 yrs),>= 75.0%,PASS
+Cost Stress (PF @ 2x Costs),1.17,> 1.20,FAIL
+Return Concentration,"$+22,465.74 (+224.7%)",Clearly Positive,PASS
+Mathematical Expectancy,+0.070R,> +0.15R,FAIL

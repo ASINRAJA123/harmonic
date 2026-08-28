@@ -64,25 +64,35 @@ DEMO_SERVER = "Exness-MT5Trial15"
 MAGIC_NUMBER = 888333
 TRADE_COMMENT_PREFIX = "HarmonicV3"
 
-SYMBOLS = ["XAUUSDm", "EURUSDm", "GBPUSDm", "USDJPYm", "USDCADm", "BTCUSDm"]
+# Upgraded 6-Asset Alpha Universe (Gold, Crude Oil, Silver, GBP/USD, EUR/USD, USD/JPY)
+SYMBOLS = [
+    "XAUUSDm",   # 1. Gold (Spot) - Primary Alpha Champion
+    "USOILm",    # 2. Crude Oil (WTI) - Orthogonal Commodity Diversifier
+    "XAGUSDm",   # 3. Silver (Spot) - Precious Metals High-Beta Engine
+    "GBPUSDm",   # 4. GBP/USD - Top Forex Alpha Pair
+    "EURUSDm",   # 5. EUR/USD - High Liquidity / Low Spread Trend Engine
+    "USDJPYm"    # 6. USD/JPY - Safe Low-Drawdown Diversifier
+]
 
 TIMEFRAME_M15 = mt5.TIMEFRAME_M15
 TIMEFRAME_H1 = mt5.TIMEFRAME_H1
 LOOKBACK_BARS = 350
 
-ENABLED_PATTERNS = ["Cypher", "Gartley", "Crab", "Shark"]
-MIN_SCORE = 0.85
+ENABLED_PATTERNS = ["Shark", "Cypher", "Gartley"]
+MIN_SCORE = 0.80
 PIVOT_LENGTHS = [3, 5, 8]
-RISK_PER_TRADE_PCT = 0.02         # 2.0% Risk per trade
+RISK_PER_TRADE_PCT = 0.015        # 1.5% Risk per trade (Institutional Sizing)
 MAX_CONCURRENT_POSITIONS = 2      # Max open trades per symbol
-MIN_ATR_STOP_MULT = 1.25          # Stop distance >= 1.25x ATR(14)
+MIN_ATR_STOP_MULT = 0.50          # Stop distance >= 0.50x ATR(14) (Model A Pure Harmonic Stop)
 MIN_STOP_TO_SPREAD_RATIO = 4.5    # Stop distance >= 4.5x Spread
 
 SESSION_FILTER_ENABLED = True
 SESSION_START_HOUR_UTC = 13
 SESSION_END_HOUR_UTC = 20
 
-POLL_INTERVAL_SECONDS = 10
+TRADE_COMMENT_PREFIX = "HEAV3"
+MAGIC_NUMBER = 888333
+POLL_INTERVAL_SECONDS = 2  # Reduced to 2s to minimize execution gap at candle close
 
 
 # ==============================================================================
@@ -203,6 +213,10 @@ def get_h1_trend_bias(symbol):
     df_h1 = fetch_rates_df(symbol, TIMEFRAME_H1, n_bars=250)
     if df_h1 is None or len(df_h1) < 200:
         return 0
+        
+    # Trade on Close logic for H1: Drop the actively forming H1 candle
+    df_h1 = df_h1.iloc[:-1].reset_index(drop=True)
+        
     closes = df_h1["close"].values
     ema50 = compute_ema(closes, 50)
     ema200 = compute_ema(closes, 200)
@@ -434,6 +448,12 @@ def open_harmonic_trade(symbol, pattern, current_bid, current_ask):
 
     log_msg(f"  [SUCCESS] ORDER EXECUTED! Ticket #{result.order} | Deal #{result.deal}\n", level="TRADE", log_type="ORDER_SUCCESS")
 
+    # Cache Timeout
+    pattern_len = pattern.d_idx - pattern.x_idx
+    timeout_minutes = int(pattern_len * 3.0 * 15)
+    timeout_time = datetime.datetime.now(datetime.timezone.utc) + datetime.timedelta(minutes=timeout_minutes)
+    ACTIVE_TRADE_TIMEOUTS[result.order] = timeout_time
+
     # Record to MongoDB
     mongo_logger.record_trade_open({
         "ticket": result.order,
@@ -452,8 +472,44 @@ def open_harmonic_trade(symbol, pattern, current_bid, current_ask):
     return True
 
 
+def sync_closed_mongo_trades():
+    """Polls MongoDB for open trades and verifies their closed status against MT5 history."""
+    if not mongo_logger.connected or mongo_logger.db is None: return
+    try:
+        active_mongo = mongo_logger.db["trades"].find({"status": {"$in": ["OPEN", "BREAK_EVEN", "RISK_REDUCED", "PARTIAL_PROFIT"]}})
+        
+        from_date = datetime.datetime.now(datetime.timezone.utc) - datetime.timedelta(days=7)
+        to_date = datetime.datetime.now(datetime.timezone.utc) + datetime.timedelta(days=1)
+        all_deals = mt5.history_deals_get(from_date, to_date)
+        if not all_deals: return
+        
+        for t in active_mongo:
+            ticket = t.get("ticket")
+            if not ticket: continue
+            
+            # Check if position still exists in live MT5
+            live_pos = mt5.positions_get(ticket=ticket)
+            if live_pos and len(live_pos) > 0:
+                continue  # Position is still active, do not mark as closed!
+                
+            # Position is fully closed, calculate final PnL from all OUT deals
+            pos_deals = [d for d in all_deals if d.position_id == ticket and d.entry == mt5.DEAL_ENTRY_OUT]
+            
+            if pos_deals:
+                total_pnl = sum(d.profit for d in pos_deals)
+                status = "CLOSED" if total_pnl > 0 else "STOP_LOSS"
+                if abs(total_pnl) < 1.0: status = "BREAK_EVEN_CLOSED"
+                
+                close_time_utc = datetime.datetime.now(datetime.timezone.utc)
+                mongo_logger.record_trade_update(ticket, {"status": status, "pnl": total_pnl, "close_time": close_time_utc})
+                log_msg(f">>> [DASHBOARD AUTO-SYNC] Updated Ticket #{ticket} -> {status} (Final PnL: ${total_pnl:.2f})")
+    except Exception as e:
+        pass
+
+
 def manage_active_positions(active_symbols):
-    """Monitors open positions, manages 3-stage progressive trailing & Break-Even."""
+    """Monitors open positions, manages Partial Close, Break-Even, and Timeouts."""
+    global ACTIVE_TRADE_TIMEOUTS, PARTIALLY_CLOSED_TICKETS
     positions = mt5.positions_get()
     if positions is None or len(positions) == 0:
         return
@@ -464,6 +520,7 @@ def manage_active_positions(active_symbols):
 
         sym = pos.symbol
         ticket = pos.ticket
+        pos_id = getattr(pos, 'identifier', pos.ticket)  # Use persistent identifier for caches
         sym_info = mt5.symbol_info(sym)
         if sym_info is None:
             continue
@@ -476,23 +533,10 @@ def manage_active_positions(active_symbols):
         entry_to_sl = abs(open_price - curr_sl) if curr_sl > 0 else 0
         profit_dist = (curr_price - open_price) if is_buy else (open_price - curr_price)
 
-        # Stage 1: Move SL to Cut Risk by 50% when trade achieves 0.5R profit
-        if entry_to_sl > 0 and profit_dist >= (entry_to_sl * 0.5):
-            mid_sl = round(open_price - (entry_to_sl * 0.5) if is_buy else open_price + (entry_to_sl * 0.5), sym_info.digits)
-            should_tighten = (curr_sl < mid_sl) if is_buy else (curr_sl > mid_sl)
-            if should_tighten:
-                log_msg(f"\n>>> [RISK REDUCTION +0.5R] Tightening SL for #{ticket} ({sym}) to {mid_sl}...", level="TRADE", log_type="TRAILING_SL")
-                modify_request = {
-                    "action": mt5.TRADE_ACTION_SLTP,
-                    "position": ticket,
-                    "symbol": sym,
-                    "sl": mid_sl,
-                    "tp": pos.tp,
-                }
-                mt5.order_send(modify_request)
-                mongo_logger.record_trade_update(ticket, {"sl_price": mid_sl, "status": "RISK_REDUCED"})
+        # Sync live floating PnL and current Lot Size to Dashboard
+        mongo_logger.record_trade_update(ticket, {"pnl": pos.profit, "lot_size": pos.volume})
 
-        # Stage 2: Move SL to Break-Even when trade achieves 1.0R / TP1
+        # Stage 1: Move SL to Break-Even and Partial Close 50% when trade achieves 1.0R / TP1
         if entry_to_sl > 0 and profit_dist >= entry_to_sl:
             be_price = round(open_price + (sym_info.point * 2 if is_buy else -sym_info.point * 2), sym_info.digits)
             needs_sl_move = (curr_sl < open_price) if is_buy else (curr_sl > open_price)
@@ -512,6 +556,53 @@ def manage_active_positions(active_symbols):
                 if res and res.retcode == mt5.TRADE_RETCODE_DONE:
                     log_msg(f"  [OK] Stop Loss successfully updated to Break-Even for #{ticket}")
                     mongo_logger.record_trade_update(ticket, {"sl_price": be_price, "status": "BREAK_EVEN"})
+            
+            # Partial Close 50%
+            if pos_id not in PARTIALLY_CLOSED_TICKETS:
+                step = sym_info.volume_step if sym_info.volume_step > 0 else 0.01
+                half_vol = math.floor((pos.volume / 2.0) / step) * step
+                if half_vol >= sym_info.volume_min:
+                    log_msg(f"  [PARTIAL CLOSE] Scaling out 50% ({half_vol} lots) for #{ticket}...", level="TRADE")
+                    close_req = {
+                        "action": mt5.TRADE_ACTION_DEAL,
+                        "symbol": sym,
+                        "volume": half_vol,
+                        "type": mt5.ORDER_TYPE_SELL if is_buy else mt5.ORDER_TYPE_BUY,
+                        "position": ticket,
+                        "price": sym_info.bid if is_buy else sym_info.ask,
+                        "deviation": 20,
+                        "magic": MAGIC_NUMBER,
+                        "comment": "TP1_PARTIAL",
+                        "type_time": mt5.ORDER_TIME_GTC,
+                        "type_filling": mt5.ORDER_FILLING_IOC,
+                    }
+                    p_res = mt5.order_send(close_req)
+                    if p_res and p_res.retcode == mt5.TRADE_RETCODE_DONE:
+                        log_msg(f"  [OK] Successfully closed 50% of #{ticket}")
+                        PARTIALLY_CLOSED_TICKETS.add(pos_id)
+                        mongo_logger.record_trade_update(ticket, {"status": "PARTIAL_PROFIT"})
+
+        # Stage 2: Timeout Exit (Wait exactly 3x the pattern formation time)
+        if pos_id in ACTIVE_TRADE_TIMEOUTS:
+            if datetime.datetime.now(datetime.timezone.utc) > ACTIVE_TRADE_TIMEOUTS[pos_id]:
+                log_msg(f"\n>>> [TIMEOUT EXIT] Position ID #{pos_id} ({sym}) exceeded 3x pattern length! Closing at market.", level="TRADE")
+                close_req = {
+                    "action": mt5.TRADE_ACTION_DEAL,
+                    "symbol": sym,
+                    "volume": pos.volume,
+                    "type": mt5.ORDER_TYPE_SELL if is_buy else mt5.ORDER_TYPE_BUY,
+                    "position": ticket,
+                    "price": sym_info.bid if is_buy else sym_info.ask,
+                    "deviation": 20,
+                    "magic": MAGIC_NUMBER,
+                    "comment": "TIMEOUT",
+                    "type_time": mt5.ORDER_TIME_GTC,
+                    "type_filling": mt5.ORDER_FILLING_IOC,
+                }
+                t_res = mt5.order_send(close_req)
+                if t_res and t_res.retcode == mt5.TRADE_RETCODE_DONE:
+                    ACTIVE_TRADE_TIMEOUTS.pop(pos_id, None)
+                    mongo_logger.record_trade_update(ticket, {"status": "TIMEOUT_CLOSED"})
 
 
 # ==============================================================================
@@ -527,6 +618,13 @@ def run_live_bot(session_filter=SESSION_FILTER_ENABLED):
         sys.exit(1)
 
     session_desc = "13:00 - 20:00 UTC (London/NY Overlap)" if session_filter else "All Sessions (24/5 Live Scanner)"
+    
+    iteration = 0
+    traded_patterns_cache = set()
+    global ACTIVE_TRADE_TIMEOUTS, PARTIALLY_CLOSED_TICKETS
+    ACTIVE_TRADE_TIMEOUTS = {}
+    PARTIALLY_CLOSED_TICKETS = set()
+    
     log_msg("=" * 80)
     log_msg(">>> HARMONIC EA V3 ENGINE IS LIVE AND SCANNING...")
     log_msg(f"  Timeframe          : M15")
@@ -540,6 +638,8 @@ def run_live_bot(session_filter=SESSION_FILTER_ENABLED):
     log_msg("=" * 80)
 
     iteration = 0
+    traded_patterns_cache = set()  # Prevent duplicate re-entries on the same harmonic pattern swing
+
     while True:
         try:
             iteration += 1
@@ -574,6 +674,7 @@ def run_live_bot(session_filter=SESSION_FILTER_ENABLED):
             })
 
             manage_active_positions(active_symbols)
+            sync_closed_mongo_trades()
 
             if in_session:
                 for sym in active_symbols:
@@ -586,6 +687,11 @@ def run_live_bot(session_filter=SESSION_FILTER_ENABLED):
                     df_m15 = fetch_rates_df(sym, TIMEFRAME_M15, n_bars=LOOKBACK_BARS)
                     if df_m15 is None or len(df_m15) < 60:
                         continue
+
+                    # CRITICAL FIX: "Trade on Close Only" (Matches Backtest Engine exactly)
+                    # The last row is the actively forming candle. We must drop it so the bot 
+                    # only scans fully completed and closed 15-minute candles to avoid intrabar fakeouts.
+                    df_m15 = df_m15.iloc[:-1].reset_index(drop=True)
 
                     highs = df_m15["high"].values
                     lows = df_m15["low"].values
@@ -601,11 +707,18 @@ def run_live_bot(session_filter=SESSION_FILTER_ENABLED):
 
                     patterns = scan_harmonic_patterns(df_m15, symbol=sym)
                     for pat in patterns:
+                        # 1. Unique Pattern Signature Check (Matches backtest 1-entry rule)
+                        pat_signature = f"{sym}_{pat.pattern_type}_{pat.bull}_{pat.d_idx}_{pat.x_idx}_{df_m15['time'].iloc[-1]}"
+                        if pat_signature in traded_patterns_cache:
+                            continue
+
+                        # 2. H1 Trend Gate
                         if pat.bull and h1_bias < 0:
                             continue
                         if not pat.bull and h1_bias > 0:
                             continue
 
+                        # 3. Stop Floor
                         stop_dist = abs(pat.entry_price - pat.stop_price)
                         min_stop_atr = curr_atr * MIN_ATR_STOP_MULT
                         min_stop_spread = spread_price * MIN_STOP_TO_SPREAD_RATIO
@@ -613,10 +726,24 @@ def run_live_bot(session_filter=SESSION_FILTER_ENABLED):
                         if stop_dist < max(min_stop_atr, min_stop_spread):
                             continue
 
-                        open_harmonic_trade(sym, pat, sym_info.bid, sym_info.ask)
+                        success = open_harmonic_trade(sym, pat, sym_info.bid, sym_info.ask)
+                        if success:
+                            traded_patterns_cache.add(pat_signature)
+                            if len(traded_patterns_cache) > 200:
+                                traded_patterns_cache.pop()
                         break
 
-            time.sleep(POLL_INTERVAL_SECONDS)
+            # ==========================================
+            # DYNAMIC HYPER-POLLING FOR ZERO-GAP ENTRY
+            # ==========================================
+            now = datetime.datetime.now(datetime.timezone.utc)
+            seconds_to_15 = 900 - ((now.minute % 15) * 60 + now.second)
+            
+            # If we are within 5 seconds of the 15-minute candle close, poll every 100ms
+            if seconds_to_15 <= 5 or seconds_to_15 == 900:
+                time.sleep(0.1)
+            else:
+                time.sleep(POLL_INTERVAL_SECONDS)  # Normal 2s polling for active position trailing
 
         except KeyboardInterrupt:
             log_msg("\n>>> Bot shutdown requested by user. Exiting cleanly...")

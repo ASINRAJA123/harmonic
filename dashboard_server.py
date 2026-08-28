@@ -617,12 +617,14 @@ HTML_CONTENT = """<!DOCTYPE html>
                                     <th>Type</th>
                                     <th>Pattern</th>
                                     <th>Lot</th>
+                                    <th>Entry Time (IST)</th>
+                                    <th>Exit Time (IST)</th>
                                     <th>PnL ($)</th>
                                     <th>Status</th>
                                 </tr>
                             </thead>
                             <tbody id="tradesTableBody">
-                                <tr><td colspan="7" style="text-align: center; color: var(--text-muted);">No active trades currently open</td></tr>
+                                <tr><td colspan="9" style="text-align: center; color: var(--text-muted);">No active trades currently open</td></tr>
                             </tbody>
                         </table>
                     </div>
@@ -714,6 +716,17 @@ HTML_CONTENT = """<!DOCTYPE html>
                         const isActive = ['OPEN', 'BREAK_EVEN', 'RISK_REDUCED'].includes(tr.status);
                         const rowStyle = isActive ? 'background: rgba(99, 102, 241, 0.1);' : '';
                         const statusColor = isActive ? 'var(--cyan)' : (tr.pnl > 0 ? 'var(--success)' : (tr.pnl < 0 ? 'var(--danger)' : '#FFF'));
+                        
+                        let openTimeIST = '-';
+                        if (tr.open_time && tr.open_time.$date) {
+                            openTimeIST = new Date(tr.open_time.$date).toLocaleString('en-IN', {timeZone: 'Asia/Kolkata', hour: '2-digit', minute:'2-digit', second:'2-digit', hour12: true});
+                        }
+                        
+                        let closeTimeIST = '-';
+                        if (tr.close_time && tr.close_time.$date) {
+                            closeTimeIST = new Date(tr.close_time.$date).toLocaleString('en-IN', {timeZone: 'Asia/Kolkata', hour: '2-digit', minute:'2-digit', second:'2-digit', hour12: true});
+                        }
+
                         return `
                         <tr style="${rowStyle}">
                             <td>#${tr.ticket || '-'}</td>
@@ -721,6 +734,8 @@ HTML_CONTENT = """<!DOCTYPE html>
                             <td><span class="tag ${tr.direction}">${tr.direction}</span></td>
                             <td>${tr.pattern}</td>
                             <td>${tr.lot_size}</td>
+                            <td style="font-size: 11px; color: var(--text-muted);">${openTimeIST}</td>
+                            <td style="font-size: 11px; color: var(--text-muted);">${closeTimeIST}</td>
                             <td style="color: ${tr.pnl > 0 ? 'var(--success)' : (tr.pnl < 0 ? 'var(--danger)' : '#FFF')}">$${(tr.pnl || 0).toFixed(2)}</td>
                             <td><span class="tag" style="background: rgba(255,255,255,0.1); color: ${statusColor}; font-weight: bold;">${isActive ? '🟢 ' : ''}${tr.status}</span></td>
                         </tr>

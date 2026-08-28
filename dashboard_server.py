@@ -75,7 +75,10 @@ def get_status():
 @app.get("/api/logs")
 def get_logs(limit: int = 150, level: Optional[str] = None, search: Optional[str] = None):
     try:
-        query = {}
+        # Only fetch logs from the last 1 hour
+        one_hour_ago = datetime.datetime.now(datetime.timezone.utc) - datetime.timedelta(hours=1)
+        query = {"timestamp": {"$gte": one_hour_ago}}
+        
         if level and level != "ALL":
             query["level"] = level.upper()
         if search:
@@ -698,17 +701,31 @@ HTML_CONTENT = """<!DOCTYPE html>
                 const trades = await resTrades.json();
                 const tradesBody = document.getElementById('tradesTableBody');
                 if (Array.isArray(trades) && trades.length > 0) {
-                    tradesBody.innerHTML = trades.map(tr => `
-                        <tr>
+                    // Sort active trades to top
+                    trades.sort((a, b) => {
+                        const aActive = ['OPEN', 'BREAK_EVEN', 'RISK_REDUCED'].includes(a.status);
+                        const bActive = ['OPEN', 'BREAK_EVEN', 'RISK_REDUCED'].includes(b.status);
+                        if (aActive && !bActive) return -1;
+                        if (!aActive && bActive) return 1;
+                        return 0;
+                    });
+
+                    tradesBody.innerHTML = trades.map(tr => {
+                        const isActive = ['OPEN', 'BREAK_EVEN', 'RISK_REDUCED'].includes(tr.status);
+                        const rowStyle = isActive ? 'background: rgba(99, 102, 241, 0.1);' : '';
+                        const statusColor = isActive ? 'var(--cyan)' : (tr.pnl > 0 ? 'var(--success)' : (tr.pnl < 0 ? 'var(--danger)' : '#FFF'));
+                        return `
+                        <tr style="${rowStyle}">
                             <td>#${tr.ticket || '-'}</td>
                             <td style="font-weight: 600;">${tr.symbol}</td>
                             <td><span class="tag ${tr.direction}">${tr.direction}</span></td>
                             <td>${tr.pattern}</td>
                             <td>${tr.lot_size}</td>
-                            <td style="color: ${tr.pnl >= 0 ? 'var(--success)' : 'var(--danger)'}">$${(tr.pnl || 0).toFixed(2)}</td>
-                            <td><span class="tag" style="background: rgba(255,255,255,0.1);">${tr.status}</span></td>
+                            <td style="color: ${tr.pnl > 0 ? 'var(--success)' : (tr.pnl < 0 ? 'var(--danger)' : '#FFF')}">$${(tr.pnl || 0).toFixed(2)}</td>
+                            <td><span class="tag" style="background: rgba(255,255,255,0.1); color: ${statusColor}; font-weight: bold;">${isActive ? '🟢 ' : ''}${tr.status}</span></td>
                         </tr>
-                    `).join('');
+                        `;
+                    }).join('');
                 }
 
                 // 4. Fetch Patterns
@@ -747,7 +764,7 @@ def serve_dashboard():
 if __name__ == "__main__":
     print("=" * 80)
     print("🚀 STARTING HARMONIC EA V3 LIVE DASHBOARD SERVER...")
-    print("🌐 URL: http://localhost:5000")
+    print("🌐 URL: http://localhost:12000")
     print("☁️ Connected to MongoDB Atlas: cluster0.tt1v1.mongodb.net / harmonic_trading")
     print("=" * 80)
-    uvicorn.run(app, host="0.0.0.0", port=5000, log_level="info")
+    uvicorn.run(app, host="0.0.0.0", port=12000, log_level="info")

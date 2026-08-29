@@ -851,7 +851,7 @@ HTML_CONTENT = """<!DOCTYPE html>
             <div class="card">
                 <div class="card-label">Open Positions</div>
                 <div id="valOpenPositions" class="card-value" style="color: var(--cyan);">0</div>
-                <div class="card-sub">Active Magic #888333</div>
+                <div class="card-sub" id="subMagic">Active Magic #888333</div>
             </div>
         </div>
 
@@ -952,10 +952,12 @@ HTML_CONTENT = """<!DOCTYPE html>
                 document.getElementById('portForex').classList.add('active');
                 document.getElementById('subEquity').innerText = 'Account #474471944';
                 document.getElementById('subBalance').innerText = 'Exness-MT5Trial15';
+                document.getElementById('subMagic').innerText = 'Active Magic #888333';
             } else if (pCode === 'BTC') {
                 document.getElementById('portBtc').classList.add('active');
                 document.getElementById('subEquity').innerText = 'Account #472637125';
                 document.getElementById('subBalance').innerText = 'Exness-MT5Trial16';
+                document.getElementById('subMagic').innerText = 'Active Magic #888444';
             } else {
                 document.getElementById('portAll').classList.add('active');
                 document.getElementById('subEquity').innerText = 'Combined Equity';

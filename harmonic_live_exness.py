@@ -90,6 +90,8 @@ SESSION_FILTER_ENABLED = True
 SESSION_START_HOUR_UTC = 13
 SESSION_END_HOUR_UTC = 20
 
+TRADE_COMMENT_PREFIX = "HEAV3"
+MAGIC_NUMBER = 888333
 POLL_INTERVAL_SECONDS = 2  # Reduced to 2s to minimize execution gap at candle close
 
 
@@ -665,14 +667,17 @@ def run_live_bot(session_filter=SESSION_FILTER_ENABLED):
             log_msg(status_str, level="INFO", log_type="HEARTBEAT")
 
             # Update live bot telemetry state in MongoDB
-            mongo_logger.update_bot_state({
+            mongo_logger.publish_bot_status({
                 "balance": acct.balance,
                 "equity": acct.equity,
                 "margin_free": acct.margin_free,
                 "open_positions": len(bot_positions),
                 "in_session": in_session,
                 "iteration": iteration,
-                "is_online": True
+                "is_online": True,
+                "portfolio": "FOREX",
+                "account": 474471944,
+                "server": "Exness-MT5Trial15"
             })
 
             manage_active_positions(active_symbols)
@@ -749,7 +754,7 @@ def run_live_bot(session_filter=SESSION_FILTER_ENABLED):
 
         except KeyboardInterrupt:
             log_msg("\n>>> Bot shutdown requested by user. Exiting cleanly...")
-            mongo_logger.update_bot_state({"is_online": False})
+            mongo_logger.publish_bot_status({"is_online": False, "portfolio": "FOREX"})
             mt5.shutdown()
             break
         except Exception as e:

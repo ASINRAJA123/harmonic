@@ -42,60 +42,110 @@ def parse_json(data):
 
 
 @app.get("/api/status")
-def get_status():
+def get_status(portfolio: str = "FOREX"):
     try:
-        state = db["bot_state"].find_one({"state_id": "current_live_state"}, {"_id": 0})
-        if not state:
-            state = {
-                "is_online": False,
-                "balance": 500.0,
-                "equity": 500.0,
-                "margin_free": 500.0,
-                "open_positions": 0,
-                "account_login": 474471944,
-                "account_server": "Exness-MT5Trial15",
-                "in_session": False,
-                "last_heartbeat": None
-            }
-        
-        # Check freshness of heartbeat (within 45s)
-        if state.get("last_heartbeat"):
-            # calculate diff
-            last_hb = state["last_heartbeat"]
-            if isinstance(last_hb, datetime.datetime):
-                now = datetime.datetime.now(datetime.timezone.utc)
-                if (now - last_hb.replace(tzinfo=datetime.timezone.utc if last_hb.tzinfo is None else last_hb.tzinfo)).total_seconds() > 45:
-                    state["is_online"] = False
+        if portfolio == "ALL":
+            state_forex = db["bot_state"].find_one({"state_id": "current_live_state_forex"}, {"_id": 0})
+            state_btc = db["bot_state"].find_one({"state_id": "current_live_state_btc"}, {"_id": 0})
+            
+            if not state_forex:
+                state_forex = db["bot_state"].find_one({"state_id": "current_live_state"}, {"_id": 0})
+                
+            f_online = False
+            b_online = False
+            
+            now = datetime.datetime.now(datetime.timezone.utc)
+            if state_forex and state_forex.get("last_heartbeat"):
+                lh = state_forex["last_heartbeat"]
+                if (now - lh.replace(tzinfo=datetime.timezone.utc if lh.tzinfo is None else lh.tzinfo)).total_seconds() <= 45:
+                    f_online = state_forex.get("is_online", False)
+            if state_btc and state_btc.get("last_heartbeat"):
+                lh = state_btc["last_heartbeat"]
+                if (now - lh.replace(tzinfo=datetime.timezone.utc if lh.tzinfo is None else lh.tzinfo)).total_seconds() <= 45:
+                    b_online = state_btc.get("is_online", False)
                     
-        return parse_json(state)
+            combined = {
+                "is_online": f_online or b_online,
+                "forex_online": f_online,
+                "btc_online": b_online,
+                "balance": (state_forex.get("balance", 500.0) if state_forex else 500.0) + (state_btc.get("balance", 20000.0) if state_btc else 20000.0),
+                "equity": (state_forex.get("equity", 500.0) if state_forex else 500.0) + (state_btc.get("equity", 20000.0) if state_btc else 20000.0),
+                "margin_free": (state_forex.get("margin_free", 500.0) if state_forex else 500.0) + (state_btc.get("margin_free", 20000.0) if state_btc else 20000.0),
+                "open_positions": (state_forex.get("open_positions", 0) if state_forex else 0) + (state_btc.get("open_positions", 0) if state_btc else 0),
+                "account_login": "Combined Accounts",
+                "account_server": "Exness-MT5Trial15 & 16",
+                "in_session": f_online or b_online,
+                "last_heartbeat": now
+            }
+            return parse_json(combined)
+            
+        else:
+            state_id = f"current_live_state_{portfolio.lower()}"
+            state = db["bot_state"].find_one({"state_id": state_id}, {"_id": 0})
+            if not state and portfolio.upper() == "FOREX":
+                state = db["bot_state"].find_one({"state_id": "current_live_state"}, {"_id": 0})
+                
+            if not state:
+                default_balance = 500.0 if portfolio == "FOREX" else 20000.0
+                state = {
+                    "is_online": False,
+                    "balance": default_balance,
+                    "equity": default_balance,
+                    "margin_free": default_balance,
+                    "open_positions": 0,
+                    "account_login": 474471944 if portfolio == "FOREX" else 472637125,
+                    "account_server": "Exness-MT5Trial15" if portfolio == "FOREX" else "Exness-MT5Trial16",
+                    "in_session": False,
+                    "last_heartbeat": None
+                }
+            
+            if state.get("last_heartbeat"):
+                last_hb = state["last_heartbeat"]
+                if isinstance(last_hb, datetime.datetime):
+                    now = datetime.datetime.now(datetime.timezone.utc)
+                    if (now - last_hb.replace(tzinfo=datetime.timezone.utc if last_hb.tzinfo is None else last_hb.tzinfo)).total_seconds() > 45:
+                        state["is_online"] = False
+                        
+            return parse_json(state)
     except Exception as e:
         return {"error": str(e), "is_online": False}
 
 
 @app.get("/api/logs")
-def get_logs(limit: int = 150, level: Optional[str] = None, search: Optional[str] = None):
+def get_logs(portfolio: str = "ALL", limit: int = 150, level: Optional[str] = None, search: Optional[str] = None):
     try:
-        # Only fetch logs from the last 1 hour
         one_hour_ago = datetime.datetime.now(datetime.timezone.utc) - datetime.timedelta(hours=1)
         query = {"timestamp": {"$gte": one_hour_ago}}
         
         if level and level != "ALL":
             query["level"] = level.upper()
+            
+        if portfolio.upper() == "BTC":
+            query["message"] = {"$regex": r"^\[BTC\]", "$options": "i"}
+        elif portfolio.upper() == "FOREX":
+            query["message"] = {"$regex": r"^(?!\[BTC\])", "$options": "i"}
+            
         if search:
             query["message"] = {"$regex": search, "$options": "i"}
             
         logs_cursor = db["logs"].find(query).sort("timestamp", -1).limit(limit)
         logs_list = list(logs_cursor)
-        logs_list.reverse() # chronological order
+        logs_list.reverse()
         return parse_json(logs_list)
     except Exception as e:
         return {"error": str(e), "logs": []}
 
 
 @app.get("/api/trades")
-def get_trades(limit: int = 100):
+def get_trades(portfolio: str = "ALL", limit: int = 100):
     try:
-        trades_cursor = db["trades"].find().sort("open_time", -1).limit(limit)
+        query = {}
+        if portfolio.upper() == "BTC":
+            query["portfolio"] = "BTC"
+        elif portfolio.upper() == "FOREX":
+            query = {"$or": [{"portfolio": "FOREX"}, {"portfolio": {"$exists": False}}]}
+            
+        trades_cursor = db["trades"].find(query).sort("open_time", -1).limit(limit)
         trades_list = list(trades_cursor)
         return parse_json(trades_list)
     except Exception as e:
@@ -103,9 +153,15 @@ def get_trades(limit: int = 100):
 
 
 @app.get("/api/patterns")
-def get_patterns(limit: int = 20):
+def get_patterns(portfolio: str = "ALL", limit: int = 20):
     try:
-        patterns_cursor = db["patterns"].find().sort("timestamp", -1).limit(limit)
+        query = {}
+        if portfolio.upper() == "BTC":
+            query["portfolio"] = "BTC"
+        elif portfolio.upper() == "FOREX":
+            query = {"$or": [{"portfolio": "FOREX"}, {"portfolio": {"$exists": False}}]}
+            
+        patterns_cursor = db["patterns"].find(query).sort("timestamp", -1).limit(limit)
         patterns_list = list(patterns_cursor)
         return parse_json(patterns_list)
     except Exception as e:
@@ -113,9 +169,15 @@ def get_patterns(limit: int = 20):
 
 
 @app.get("/api/metrics")
-def get_metrics():
+def get_metrics(portfolio: str = "ALL"):
     try:
-        trades = list(db["trades"].find())
+        query = {}
+        if portfolio.upper() == "BTC":
+            query["portfolio"] = "BTC"
+        elif portfolio.upper() == "FOREX":
+            query = {"$or": [{"portfolio": "FOREX"}, {"portfolio": {"$exists": False}}]}
+            
+        trades = list(db["trades"].find(query))
         total_trades = len(trades)
         wins = sum(1 for t in trades if t.get("pnl", 0) > 0)
         losses = sum(1 for t in trades if t.get("pnl", 0) < 0)
@@ -672,6 +734,63 @@ HTML_CONTENT = """<!DOCTYPE html>
         }
 
         .btn:hover { background: #4F46E5; box-shadow: 0 0 14px var(--primary-glow); }
+
+        /* Portfolio Switcher Styles */
+        .portfolio-switcher-bar {
+            display: flex;
+            background: rgba(15, 23, 42, 0.4);
+            border: 1px solid var(--border-subtle);
+            border-radius: 12px;
+            padding: 4px;
+            gap: 4px;
+            margin-top: -10px;
+            margin-bottom: 15px;
+        }
+
+        .portfolio-btn {
+            flex: 1;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 8px;
+            background: transparent;
+            border: none;
+            color: var(--text-muted);
+            padding: 10px 16px;
+            border-radius: 10px;
+            font-size: 13px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.2s ease-in-out;
+        }
+
+        .portfolio-btn:hover {
+            color: var(--text-main);
+            background: rgba(255, 255, 255, 0.05);
+        }
+
+        .portfolio-btn.active {
+            background: var(--primary);
+            color: #FFFFFF;
+            box-shadow: 0 4px 14px var(--primary-glow);
+        }
+
+        .portfolio-btn .btn-icon {
+            font-size: 14px;
+        }
+
+        @media (max-width: 768px) {
+            .portfolio-switcher-bar {
+                flex-direction: column;
+                padding: 6px;
+                margin-top: 0;
+            }
+            .portfolio-btn {
+                padding: 12px;
+                font-size: 12px;
+                justify-content: flex-start;
+            }
+        }
     </style>
 </head>
 <body>
@@ -693,6 +812,22 @@ HTML_CONTENT = """<!DOCTYPE html>
                 <button class="btn" onclick="fetchData()">Refresh</button>
             </div>
         </header>
+
+        <!-- Portfolio Switcher Toolbar -->
+        <div class="portfolio-switcher-bar">
+            <button id="portForex" class="portfolio-btn active" onclick="switchPortfolio('FOREX')">
+                <span class="btn-icon">💼</span>
+                <span class="btn-label">6-Pair Forex & Gold (#474471944)</span>
+            </button>
+            <button id="portBtc" class="portfolio-btn" onclick="switchPortfolio('BTC')">
+                <span class="btn-icon">🪙</span>
+                <span class="btn-label">Bitcoin Dedicated (#472637125)</span>
+            </button>
+            <button id="portAll" class="portfolio-btn" onclick="switchPortfolio('ALL')">
+                <span class="btn-icon">📊</span>
+                <span class="btn-label">Combined Overview</span>
+            </button>
+        </div>
 
         <!-- Metric Cards -->
         <div class="metrics-grid">
@@ -808,9 +943,34 @@ HTML_CONTENT = """<!DOCTYPE html>
     </div>
 
     <script>
+        let currentPortfolio = 'FOREX';
         let currentFilterMode = 'TODAY';
         let customSelectedDate = '';
         let allTradesCache = [];
+
+        function switchPortfolio(pCode) {
+            currentPortfolio = pCode;
+            document.querySelectorAll('.portfolio-btn').forEach(b => b.classList.remove('active'));
+            if (pCode === 'FOREX') {
+                document.getElementById('portForex').classList.add('active');
+                document.getElementById('subEquity').innerText = 'Account #474471944';
+                document.getElementById('subBalance').innerText = 'Exness-MT5Trial15';
+            } else if (pCode === 'BTC') {
+                document.getElementById('portBtc').classList.add('active');
+                document.getElementById('subEquity').innerText = 'Account #472637125';
+                document.getElementById('subBalance').innerText = 'Exness-MT5Trial16';
+            } else {
+                document.getElementById('portAll').classList.add('active');
+                document.getElementById('subEquity').innerText = 'Combined Equity';
+                document.getElementById('subBalance').innerText = 'All Terminals Active';
+            }
+            // Reset cache to avoid mixing data
+            allTradesCache = [];
+            
+            // Immediately render empty and fetch fresh
+            renderTrades([]);
+            fetchData();
+        }
 
         function setTradeFilter(mode, specificDate = '') {
             currentFilterMode = mode;
@@ -967,8 +1127,8 @@ HTML_CONTENT = """<!DOCTYPE html>
 
         async function fetchData() {
             try {
-                // 1. Fetch Status
-                const resStatus = await fetch('/api/status');
+                // 1. Fetch Status with portfolio param
+                const resStatus = await fetch(`/api/status?portfolio=${currentPortfolio}`);
                 const st = await resStatus.json();
                 
                 const pill = document.getElementById('statusPill');
@@ -981,9 +1141,9 @@ HTML_CONTENT = """<!DOCTYPE html>
                     stText.innerText = 'BOT STANDBY / OFFLINE';
                 }
 
-                document.getElementById('valEquity').innerText = '$' + (st.equity ? st.equity.toFixed(2) : '500.00');
-                document.getElementById('valBalance').innerText = '$' + (st.balance ? st.balance.toFixed(2) : '500.00');
-                document.getElementById('valMargin').innerText = '$' + (st.margin_free ? st.margin_free.toFixed(2) : '500.00');
+                document.getElementById('valEquity').innerText = '$' + (st.equity ? st.equity.toFixed(2) : '0.00');
+                document.getElementById('valBalance').innerText = '$' + (st.balance ? st.balance.toFixed(2) : '0.00');
+                document.getElementById('valMargin').innerText = '$' + (st.margin_free ? st.margin_free.toFixed(2) : '0.00');
                 document.getElementById('valOpenPositions').innerText = st.open_positions !== undefined ? st.open_positions : '0';
                 
                 const sessVal = document.getElementById('valSession');
@@ -995,10 +1155,10 @@ HTML_CONTENT = """<!DOCTYPE html>
                     sessVal.style.color = 'var(--warning)';
                 }
 
-                // 2. Fetch Logs from MongoDB
+                // 2. Fetch Logs with portfolio param
                 const level = document.getElementById('logLevel').value;
                 const search = document.getElementById('logSearch').value;
-                let logUrl = '/api/logs?limit=150';
+                let logUrl = `/api/logs?portfolio=${currentPortfolio}&limit=150`;
                 if (level !== 'ALL') logUrl += `&level=${level}`;
                 if (search) logUrl += `&search=${encodeURIComponent(search)}`;
 
@@ -1017,16 +1177,18 @@ HTML_CONTENT = """<!DOCTYPE html>
                         </div>`;
                     }).join('');
                     termBody.scrollTop = termBody.scrollHeight;
+                } else {
+                    termBody.innerHTML = `<div style="color: var(--text-muted); font-size: 11px; padding: 10px;">Waiting for logs...</div>`;
                 }
 
-                // 3. Fetch Trades & Cache
-                const resTrades = await fetch('/api/trades');
+                // 3. Fetch Trades with portfolio param
+                const resTrades = await fetch(`/api/trades?portfolio=${currentPortfolio}`);
                 allTradesCache = await resTrades.json();
                 updateDateDropdown(allTradesCache);
                 renderTrades(allTradesCache);
 
-                // 4. Fetch Patterns
-                const resPats = await fetch('/api/patterns');
+                // 4. Fetch Patterns with portfolio param
+                const resPats = await fetch(`/api/patterns?portfolio=${currentPortfolio}`);
                 const pats = await resPats.json();
                 const patFeed = document.getElementById('patternsFeed');
                 if (Array.isArray(pats) && pats.length > 0) {
@@ -1039,6 +1201,8 @@ HTML_CONTENT = """<!DOCTYPE html>
                             <span class="tag" style="background: rgba(99, 102, 241, 0.2); color: var(--primary);">${(p.score * 100).toFixed(0)}% SCORE</span>
                         </div>
                     `).join('');
+                } else {
+                    patFeed.innerHTML = `<div style="text-align: center; color: var(--text-muted); padding: 20px;">Scanning price geometry...</div>`;
                 }
 
             } catch (err) {

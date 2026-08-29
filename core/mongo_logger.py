@@ -38,8 +38,10 @@ class MongoTelemetryLogger:
             self.db = self.client[self.db_name]
             # Ping database
             self.client.admin.command('ping')
+            # 1-Hour Auto-Purge TTL Index on logs collection
+            self.db["logs"].create_index("timestamp", expireAfterSeconds=3600)
             self.connected = True
-            print(f"[MongoLogger] Connected successfully to MongoDB: {self.db_name}")
+            print(f"[MongoLogger] Connected successfully to MongoDB: {self.db_name} (1-Hr Log TTL Active)")
         except Exception as e:
             self.connected = False
             print(f"[MongoLogger] MongoDB connection warning: {e}. Running in buffered mode.")
@@ -85,6 +87,9 @@ class MongoTelemetryLogger:
         except queue.Full:
             pass
 
+
+
+
     def record_trade_open(self, trade_doc):
         doc = {
             "ticket": trade_doc.get("ticket"),
@@ -103,7 +108,9 @@ class MongoTelemetryLogger:
             "status": "OPEN",
             "exit_price": None,
             "exit_reason": None,
-            "pnl": 0.0
+            "pnl": 0.0,
+            "portfolio": trade_doc.get("portfolio", "FOREX"),
+            "account": trade_doc.get("account", 474471944)
         }
         self.log("TRADE", f"OPENED {doc['direction']} on {doc['symbol']} ({doc['pattern']}) @ {doc['entry_price']} | Lot: {doc['lot_size']}", log_type="TRADE", metadata=doc)
         try:
@@ -130,6 +137,8 @@ class MongoTelemetryLogger:
             "stop_price": pattern_doc.get("stop_price"),
             "t1_price": pattern_doc.get("t1_price"),
             "t2_price": pattern_doc.get("t2_price"),
+            "portfolio": pattern_doc.get("portfolio", "FOREX"),
+            "account": pattern_doc.get("account", 474471944)
         }
         try:
             self.queue.put_nowait(("insert", "patterns", doc))
@@ -140,6 +149,16 @@ class MongoTelemetryLogger:
         state_dict["last_heartbeat"] = datetime.datetime.now(datetime.timezone.utc)
         query = {"state_id": "current_live_state"}
         update_data = {"$set": state_dict}
+        try:
+            self.queue.put_nowait(("update", "bot_state", (query, update_data, True)))
+        except queue.Full:
+            pass
+
+    def publish_bot_status(self, status_dict):
+        portfolio = status_dict.get("portfolio", "FOREX")
+        status_dict["last_heartbeat"] = datetime.datetime.now(datetime.timezone.utc)
+        query = {"state_id": f"current_live_state_{portfolio.lower()}"}
+        update_data = {"$set": status_dict}
         try:
             self.queue.put_nowait(("update", "bot_state", (query, update_data, True)))
         except queue.Full:

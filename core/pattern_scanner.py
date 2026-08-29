@@ -115,53 +115,29 @@ def validate_pattern(
     if not (v1 and v2 and v3 and v4):
         return None
 
-    # Leg symmetry
-    leg_bars = [aI - xI, bI - aI, cI - bI, dI - cI]
-    avg_bars = np.mean(leg_bars)
-    if avg_bars > 0:
-        for lb in leg_bars:
-            asym = abs(lb - avg_bars) / avg_bars * 100
-            if asym > getattr(cfg, "leg_asymmetry_pct", 250.0):
-                return None
-
-    # PRZ calculation
-    prz_bc_ext = _prz_from_bc(bP, cP, ratios, bull)
-    prz_xa_ext = _prz_from_xa(xP, aP, ratios, bull)
-    prz_levels = [l for l in [prz_bc_ext, prz_xa_ext] if l is not None]
-
-    if len(prz_levels) >= 2:
-        prz_near = min(prz_levels, key=lambda x: abs(x - dP))
-        prz_far = max(prz_levels, key=lambda x: abs(x - dP))
-    elif len(prz_levels) == 1:
-        prz_near = prz_far = prz_levels[0]
-    else:
-        prz_near = prz_far = dP
-
     errors = [e for e, valid in [(e1, ratios.ab_xa), (e2, ratios.bc_ab), (e3, ratios.cd_bc), (e4, ratios.ad_xa)] if valid is not None]
     avg_err = np.mean(errors) if errors else 0.0
-    ratio_score = 1.0 - avg_err
+    score = max(0.0, 1.0 - (avg_err / getattr(cfg, "fib_error_pct", 15.0)))
 
-    prz_range = abs(prz_near - prz_far) if prz_near != prz_far else 0.001
-    prz_confluence_score = max(0, 1.0 - (prz_range / (xa * 0.1)))
-    d_to_prz = min(abs(dP - prz_near), abs(dP - prz_far))
-    d_confluence_score = max(0, 1.0 - (d_to_prz / (xa * 0.05)))
-
-    w_ratio = getattr(cfg, "w_ratio_accuracy", 4.0)
-    w_prz = getattr(cfg, "w_prz_confluence", 2.0)
-    w_d = getattr(cfg, "w_d_confluence", 3.0)
-    total_w = w_ratio + w_prz + w_d
-
-    score = (w_ratio * ratio_score + w_prz * prz_confluence_score + w_d * d_confluence_score) / total_w
-    score = max(0.0, min(1.0, score))
-
-    t1_type, t2_type = PATTERN_TARGETS.get(ratios.name, (".618 AD", "1.272 AD"))
-    t1_price = compute_target_price(t1_type, xP, aP, bP, cP, dP, bull)
-    t2_price = compute_target_price(t2_type, xP, aP, bP, cP, dP, bull)
+    # Exact Institutional Harmonic Invalidation & Take-Profit Targets
+    if ratios.name == "Cypher":
+        tp1_price = (dP + 0.382 * cd) if bull else (dP - 0.382 * cd)
+        tp2_price = (dP + 0.618 * xc) if bull else (dP - 0.618 * xc)
+        stop_price = (xP - 0.10 * xa) if bull else (xP + 0.10 * xa)
+    elif ratios.name == "Shark":
+        tp1_price = (dP + 0.382 * cd) if bull else (dP - 0.382 * cd)
+        tp2_price = (dP + 0.500 * cd) if bull else (dP - 0.500 * cd)
+        stop_price = (dP - 0.15 * cd) if bull else (dP + 0.15 * cd)
+    elif ratios.name == "Gartley":
+        tp1_price = (dP + 0.382 * ad) if bull else (dP - 0.382 * ad)
+        tp2_price = (dP + 0.618 * ad) if bull else (dP - 0.618 * ad)
+        stop_price = (xP - 0.05 * xa) if bull else (xP + 0.05 * xa)
+    else:
+        tp1_price = (dP + 0.382 * ad) if bull else (dP - 0.382 * ad)
+        tp2_price = (dP + 0.618 * ad) if bull else (dP - 0.618 * ad)
+        stop_price = (xP - 0.10 * xa) if bull else (xP + 0.10 * xa)
 
     entry_price = dP
-    dist_to_t1 = abs(t1_price - entry_price)
-    pct = getattr(cfg, "stop_pct", 75.0) / 100.0
-    stop_price = (entry_price - dist_to_t1 * pct) if bull else (entry_price + dist_to_t1 * pct)
 
     return HarmonicPattern(
         pattern_type=ratios.name, bull=bull,
@@ -170,8 +146,8 @@ def validate_pattern(
         d_idx=dI, d_price=dP,
         r_ab_xa=r_ab_xa, r_bc_ab=r_bc_ab, r_cd_bc=r_cd_bc, r_ad_xa=r_ad_xa,
         err_ab_xa=e1, err_bc_ab=e2, err_cd_bc=e3, err_ad_xa=e4,
-        prz_near=prz_near, prz_far=prz_far, score=score,
-        t1_price=t1_price, t2_price=t2_price,
+        prz_near=dP, prz_far=dP, score=score,
+        t1_price=tp1_price, t2_price=tp2_price,
         stop_price=stop_price, entry_price=entry_price,
     )
 

@@ -24,7 +24,7 @@ class HarmonicV3Config:
     allowed_days: Optional[List[int]] = None  # Mon-Fri
     
     # 2. Frictional Protection Floor
-    min_atr_stop_multiple: float = 1.25       # Minimum stop distance = 1.25x ATR(14)
+    min_atr_stop_multiple: float = 0.50       # 0.50x ATR (Allows natural Point X stops)
     min_stop_to_spread_ratio: float = 4.5     # Stop distance must be >= 4.5x Spread
     
     # 3. H1 Institutional Trend Filter
@@ -33,14 +33,11 @@ class HarmonicV3Config:
     h1_slow_ema: int = 200
     
     # 4. High-Alpha Pattern Selection
-    min_score: float = 0.85                   # 85% minimum Fibonacci precision score
-    enabled_patterns: List[str] = field(default_factory=lambda: ["Cypher", "Gartley", "Crab", "Shark"])
+    min_score: float = 0.80                   # 80% minimum Fibonacci accuracy score
+    enabled_patterns: List[str] = field(default_factory=lambda: ["Shark", "Cypher", "Gartley"])
     fib_error_pct: float = 15.0
     leg_asymmetry_pct: float = 250.0
     pivot_lengths: List[int] = field(default_factory=lambda: [3, 5, 8])
-    w_ratio_accuracy: float = 4.0
-    w_prz_confluence: float = 2.0
-    w_d_confluence: float = 3.0
     
     # 5. Dual Targets & Trailing
     stop_pct: float = 75.0
@@ -51,7 +48,7 @@ class HarmonicV3Config:
     entry_limit_pct: float = 1.0
     
     # 6. Risk Management
-    risk_per_trade_pct: float = 0.02          # 2.0% Institutional Risk per Trade
+    risk_per_trade_pct: float = 0.015         # 1.5% Institutional Risk per Trade
     max_concurrent_positions: int = 2         # Max concurrent trades per asset
     initial_equity: float = 10_000.0
     max_lot_size: float = 50.0
@@ -63,6 +60,7 @@ class HarmonicV3Config:
     slippage_points: float = 10.0             # Slippage points on stops
     contract_size: float = 100.0
     point_size: float = 0.01
+    quote_currency: str = "USD"
     symbol: str = "XAUUSD"
 
 
@@ -275,9 +273,11 @@ def run_harmonic_v3_backtest(bars: pd.DataFrame, cfg: HarmonicV3Config) -> Dict:
                 gross_pnl = pnl_per_unit * lots * cfg.contract_size
                 applied_slip = 0.0
                 
-            spread_cost = spread_price * cfg.contract_size * lots
+            fx_rate = pat.exit_price if getattr(cfg, "quote_currency", "USD") != "USD" and getattr(pat, "exit_price", 0) > 0 else 1.0
+            gross_pnl = gross_pnl / fx_rate
+            spread_cost = (spread_price * cfg.contract_size * lots) / fx_rate
             comm_cost = cfg.commission_per_lot * lots
-            slippage_cost = applied_slip * cfg.contract_size * lots
+            slippage_cost = (applied_slip * cfg.contract_size * lots) / fx_rate
             total_friction = spread_cost + comm_cost + slippage_cost
             net_pnl = gross_pnl - total_friction
             
@@ -376,12 +376,8 @@ def run_harmonic_v3_backtest(bars: pd.DataFrame, cfg: HarmonicV3Config) -> Dict:
                                 if r_def is None: continue
                                 pat = validate_pattern(xP, aP, bP, cP, dP, xI, aI, bI, cI, dI, r_def, cfg, bull)
                                 if pat is not None and pat.score >= cfg.min_score:
-                                    found_pat = pat
-                                    break
-                            if found_pat: break
-                        if found_pat: break
-                    if found_pat: break
-                if found_pat: break
+                                    if found_pat is None or pat.score > found_pat.score:
+                                        found_pat = pat
                 
             if found_pat is not None:
                 if i + 1 >= n: continue
@@ -396,7 +392,8 @@ def run_harmonic_v3_backtest(bars: pd.DataFrame, cfg: HarmonicV3Config) -> Dict:
                     continue
                     
                 risk_amt = equity * cfg.risk_per_trade_pct
-                calc_lot = risk_amt / (stop_dist * cfg.contract_size)
+                fx_rate_entry = fill_price if getattr(cfg, "quote_currency", "USD") != "USD" and fill_price > 0 else 1.0
+                calc_lot = risk_amt / ((stop_dist / fx_rate_entry) * cfg.contract_size)
                 lot_size = max(cfg.min_lot_size, min(cfg.max_lot_size, round(calc_lot, 2)))
                 
                 found_pat.entry_price = fill_price

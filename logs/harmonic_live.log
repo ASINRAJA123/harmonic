@@ -36,3 +36,203 @@
 [2026-08-27 13:01:39 UTC] ================================================================================
 [2026-08-27 13:01:39 UTC] Equity: $2,000.00 | Balance: $2,000.00 | Open Positions: 0 | [Outside Golden Session Window - Waiting]
 [2026-08-27 13:01:49 UTC] Equity: $2,000.00 | Balance: $2,000.00 | Open Positions: 0 | [Outside Golden Session Window - Waiting]
+[2026-08-28 19:20:42 UTC] ================================================================================
+[2026-08-28 19:20:42 UTC] >>> INITIALIZING EXNESS MT5 CONNECTION...
+[2026-08-28 19:20:42 UTC]   Target Account : #474471944
+[2026-08-28 19:20:42 UTC]   Target Server  : Exness-MT5Trial15
+[2026-08-28 19:20:42 UTC] ================================================================================
+[2026-08-28 19:20:42 UTC]   [OK] Connected via direct path: C:\Program Files\MetaTrader 5 EXNESS\terminal64.exe
+[2026-08-28 19:20:42 UTC] ================================================================================
+[2026-08-28 19:20:42 UTC] >>> EXNESS MT5 LIVE CONNECTION ESTABLISHED
+[2026-08-28 19:20:42 UTC]   Account Number : #474471944
+[2026-08-28 19:20:42 UTC]   Account Name   : Standard
+[2026-08-28 19:20:42 UTC]   Server         : Exness-MT5Trial15
+[2026-08-28 19:20:42 UTC]   Currency       : USD
+[2026-08-28 19:20:42 UTC]   Balance        : $19,840.62
+[2026-08-28 19:20:42 UTC]   Equity         : $19,871.94
+[2026-08-28 19:20:42 UTC]   Free Margin    : $9,370.63
+[2026-08-28 19:20:42 UTC]   Leverage       : 1:100
+[2026-08-28 19:20:42 UTC]   Algo Trading   : [ENABLED]
+[2026-08-28 19:20:42 UTC] ================================================================================
+[2026-08-28 19:20:42 UTC] Active Trading Universe:
+[2026-08-28 19:20:42 UTC]   [+] XAUUSDm    | Spread:  260 pts | Min Lot: 0.01 | Step: 0.01
+[2026-08-28 19:20:42 UTC]   [+] USOILm     | Spread:   20 pts | Min Lot: 0.01 | Step: 0.01
+[2026-08-28 19:20:42 UTC]   [+] XAGUSDm    | Spread:   30 pts | Min Lot: 0.01 | Step: 0.01
+[2026-08-28 19:20:42 UTC]   [+] GBPUSDm    | Spread:   10 pts | Min Lot: 0.01 | Step: 0.01
+[2026-08-28 19:20:42 UTC]   [+] EURUSDm    | Spread:    8 pts | Min Lot: 0.01 | Step: 0.01
+[2026-08-28 19:20:42 UTC]   [+] USDJPYm    | Spread:   10 pts | Min Lot: 0.01 | Step: 0.01
+[2026-08-28 19:21:16 UTC] ================================================================================
+[2026-08-28 19:21:16 UTC] >>> INITIALIZING EXNESS MT5 CONNECTION...
+[2026-08-28 19:21:16 UTC]   Target Account : #474471944
+[2026-08-28 19:21:16 UTC]   Target Server  : Exness-MT5Trial15
+[2026-08-28 19:21:16 UTC] ================================================================================
+[2026-08-28 19:21:16 UTC]   [OK] Connected via direct path: C:\Program Files\MetaTrader 5 EXNESS\terminal64.exe
+[2026-08-28 19:21:16 UTC] ================================================================================
+[2026-08-28 19:21:16 UTC] >>> EXNESS MT5 LIVE CONNECTION ESTABLISHED
+[2026-08-28 19:21:16 UTC]   Account Number : #474471944
+[2026-08-28 19:21:16 UTC]   Account Name   : Standard
+[2026-08-28 19:21:16 UTC]   Server         : Exness-MT5Trial15
+[2026-08-28 19:21:16 UTC]   Currency       : USD
+[2026-08-28 19:21:16 UTC]   Balance        : $19,840.62
+[2026-08-28 19:21:16 UTC]   Equity         : $19,853.90
+[2026-08-28 19:21:16 UTC]   Free Margin    : $9,352.59
+[2026-08-28 19:21:16 UTC]   Leverage       : 1:100
+[2026-08-28 19:21:16 UTC]   Algo Trading   : [ENABLED]
+[2026-08-28 19:21:16 UTC] ================================================================================
+[2026-08-28 19:21:16 UTC] Active Trading Universe:
+[2026-08-28 19:21:16 UTC]   [+] XAUUSDm    | Spread:  260 pts | Min Lot: 0.01 | Step: 0.01
+[2026-08-28 19:21:16 UTC]   [+] USOILm     | Spread:   20 pts | Min Lot: 0.01 | Step: 0.01
+[2026-08-28 19:21:16 UTC]   [+] XAGUSDm    | Spread:   30 pts | Min Lot: 0.01 | Step: 0.01
+[2026-08-28 19:21:16 UTC]   [+] GBPUSDm    | Spread:   10 pts | Min Lot: 0.01 | Step: 0.01
+[2026-08-28 19:21:16 UTC]   [+] EURUSDm    | Spread:    8 pts | Min Lot: 0.01 | Step: 0.01
+[2026-08-28 19:21:16 UTC]   [+] USDJPYm    | Spread:   10 pts | Min Lot: 0.01 | Step: 0.01
+[2026-08-28 19:23:01 UTC] ================================================================================
+[2026-08-28 19:23:01 UTC] >>> INITIALIZING EXNESS MT5 CONNECTION...
+[2026-08-28 19:23:01 UTC]   Target Account : #474471944
+[2026-08-28 19:23:01 UTC]   Target Server  : Exness-MT5Trial15
+[2026-08-28 19:23:01 UTC] ================================================================================
+[2026-08-28 19:23:01 UTC]   [OK] Connected via direct path: C:\Program Files\MetaTrader 5 EXNESS\terminal64.exe
+[2026-08-28 19:23:01 UTC] ================================================================================
+[2026-08-28 19:23:01 UTC] >>> EXNESS MT5 LIVE CONNECTION ESTABLISHED
+[2026-08-28 19:23:01 UTC]   Account Number : #474471944
+[2026-08-28 19:23:01 UTC]   Account Name   : Standard
+[2026-08-28 19:23:01 UTC]   Server         : Exness-MT5Trial15
+[2026-08-28 19:23:01 UTC]   Currency       : USD
+[2026-08-28 19:23:01 UTC]   Balance        : $19,840.62
+[2026-08-28 19:23:01 UTC]   Equity         : $19,926.06
+[2026-08-28 19:23:01 UTC]   Free Margin    : $9,424.75
+[2026-08-28 19:23:01 UTC]   Leverage       : 1:100
+[2026-08-28 19:23:01 UTC]   Algo Trading   : [ENABLED]
+[2026-08-28 19:23:01 UTC] ================================================================================
+[2026-08-28 19:23:01 UTC] Active Trading Universe:
+[2026-08-28 19:23:01 UTC]   [+] XAUUSDm    | Spread:  260 pts | Min Lot: 0.01 | Step: 0.01
+[2026-08-28 19:23:01 UTC]   [+] USOILm     | Spread:   20 pts | Min Lot: 0.01 | Step: 0.01
+[2026-08-28 19:23:01 UTC]   [+] XAGUSDm    | Spread:   30 pts | Min Lot: 0.01 | Step: 0.01
+[2026-08-28 19:23:01 UTC]   [+] GBPUSDm    | Spread:   10 pts | Min Lot: 0.01 | Step: 0.01
+[2026-08-28 19:23:01 UTC]   [+] EURUSDm    | Spread:    8 pts | Min Lot: 0.01 | Step: 0.01
+[2026-08-28 19:23:01 UTC]   [+] USDJPYm    | Spread:   10 pts | Min Lot: 0.01 | Step: 0.01
+[2026-08-28 19:31:58 UTC] ================================================================================
+[2026-08-28 19:31:58 UTC] >>> INITIALIZING EXNESS MT5 CONNECTION...
+[2026-08-28 19:31:58 UTC]   Target Account : #474471944
+[2026-08-28 19:31:58 UTC]   Target Server  : Exness-MT5Trial15
+[2026-08-28 19:31:58 UTC] ================================================================================
+[2026-08-28 19:31:58 UTC]   [OK] Connected via direct path: C:\Program Files\MetaTrader 5 EXNESS\terminal64.exe
+[2026-08-28 19:31:58 UTC] ================================================================================
+[2026-08-28 19:31:58 UTC] >>> EXNESS MT5 LIVE CONNECTION ESTABLISHED
+[2026-08-28 19:31:58 UTC]   Account Number : #474471944
+[2026-08-28 19:31:58 UTC]   Account Name   : Standard
+[2026-08-28 19:31:58 UTC]   Server         : Exness-MT5Trial15
+[2026-08-28 19:31:58 UTC]   Currency       : USD
+[2026-08-28 19:31:58 UTC]   Balance        : $19,150.96
+[2026-08-28 19:31:58 UTC]   Equity         : $19,150.96
+[2026-08-28 19:31:58 UTC]   Free Margin    : $19,150.96
+[2026-08-28 19:31:58 UTC]   Leverage       : 1:100
+[2026-08-28 19:31:58 UTC]   Algo Trading   : [ENABLED]
+[2026-08-28 19:31:58 UTC] ================================================================================
+[2026-08-28 19:31:58 UTC] Active Trading Universe:
+[2026-08-28 19:31:58 UTC]   [+] XAUUSDm    | Spread:  340 pts | Min Lot: 0.01 | Step: 0.01
+[2026-08-28 19:31:58 UTC]   [+] USOILm     | Spread:   20 pts | Min Lot: 0.01 | Step: 0.01
+[2026-08-28 19:31:58 UTC]   [+] XAGUSDm    | Spread:   30 pts | Min Lot: 0.01 | Step: 0.01
+[2026-08-28 19:31:58 UTC]   [+] GBPUSDm    | Spread:   10 pts | Min Lot: 0.01 | Step: 0.01
+[2026-08-28 19:31:58 UTC]   [+] EURUSDm    | Spread:    8 pts | Min Lot: 0.01 | Step: 0.01
+[2026-08-28 19:31:58 UTC]   [+] USDJPYm    | Spread:   10 pts | Min Lot: 0.01 | Step: 0.01
+[2026-08-28 19:38:35 UTC] ================================================================================
+[2026-08-28 19:38:35 UTC] >>> INITIALIZING EXNESS MT5 CONNECTION...
+[2026-08-28 19:38:35 UTC]   Target Account : #474471944
+[2026-08-28 19:38:35 UTC]   Target Server  : Exness-MT5Trial15
+[2026-08-28 19:38:35 UTC] ================================================================================
+[2026-08-28 19:38:35 UTC]   [OK] Connected via direct path: C:\Program Files\MetaTrader 5 EXNESS\terminal64.exe
+[2026-08-28 19:38:35 UTC] ================================================================================
+[2026-08-28 19:38:35 UTC] >>> EXNESS MT5 LIVE CONNECTION ESTABLISHED
+[2026-08-28 19:38:35 UTC]   Account Number : #474471944
+[2026-08-28 19:38:35 UTC]   Account Name   : Standard
+[2026-08-28 19:38:35 UTC]   Server         : Exness-MT5Trial15
+[2026-08-28 19:38:35 UTC]   Currency       : USD
+[2026-08-28 19:38:35 UTC]   Balance        : $19,150.96
+[2026-08-28 19:38:35 UTC]   Equity         : $19,150.96
+[2026-08-28 19:38:35 UTC]   Free Margin    : $19,150.96
+[2026-08-28 19:38:35 UTC]   Leverage       : 1:100
+[2026-08-28 19:38:35 UTC]   Algo Trading   : [ENABLED]
+[2026-08-28 19:38:35 UTC] ================================================================================
+[2026-08-28 19:38:35 UTC] Active Trading Universe:
+[2026-08-28 19:38:35 UTC]   [+] XAUUSDm    | Spread:  260 pts | Min Lot: 0.01 | Step: 0.01
+[2026-08-28 19:38:35 UTC]   [+] USOILm     | Spread:   20 pts | Min Lot: 0.01 | Step: 0.01
+[2026-08-28 19:38:35 UTC]   [+] XAGUSDm    | Spread:   30 pts | Min Lot: 0.01 | Step: 0.01
+[2026-08-28 19:38:35 UTC]   [+] GBPUSDm    | Spread:   10 pts | Min Lot: 0.01 | Step: 0.01
+[2026-08-28 19:38:35 UTC]   [+] EURUSDm    | Spread:    8 pts | Min Lot: 0.01 | Step: 0.01
+[2026-08-28 19:38:35 UTC]   [+] USDJPYm    | Spread:   10 pts | Min Lot: 0.01 | Step: 0.01
+[2026-08-28 19:41:42 UTC] ================================================================================
+[2026-08-28 19:41:42 UTC] >>> INITIALIZING EXNESS MT5 CONNECTION...
+[2026-08-28 19:41:42 UTC]   Target Account : #474471944
+[2026-08-28 19:41:42 UTC]   Target Server  : Exness-MT5Trial15
+[2026-08-28 19:41:42 UTC] ================================================================================
+[2026-08-28 19:41:42 UTC]   [OK] Connected via direct path: C:\Program Files\MetaTrader 5 EXNESS\terminal64.exe
+[2026-08-28 19:41:42 UTC] ================================================================================
+[2026-08-28 19:41:42 UTC] >>> EXNESS MT5 LIVE CONNECTION ESTABLISHED
+[2026-08-28 19:41:42 UTC]   Account Number : #474471944
+[2026-08-28 19:41:42 UTC]   Account Name   : Standard
+[2026-08-28 19:41:42 UTC]   Server         : Exness-MT5Trial15
+[2026-08-28 19:41:42 UTC]   Currency       : USD
+[2026-08-28 19:41:42 UTC]   Balance        : $19,150.96
+[2026-08-28 19:41:42 UTC]   Equity         : $19,150.96
+[2026-08-28 19:41:42 UTC]   Free Margin    : $19,150.96
+[2026-08-28 19:41:42 UTC]   Leverage       : 1:100
+[2026-08-28 19:41:42 UTC]   Algo Trading   : [ENABLED]
+[2026-08-28 19:41:42 UTC] ================================================================================
+[2026-08-28 19:41:42 UTC] Active Trading Universe:
+[2026-08-28 19:41:42 UTC]   [+] XAUUSDm    | Spread:  260 pts | Min Lot: 0.01 | Step: 0.01
+[2026-08-28 19:41:42 UTC]   [+] USOILm     | Spread:   20 pts | Min Lot: 0.01 | Step: 0.01
+[2026-08-28 19:41:42 UTC]   [+] XAGUSDm    | Spread:   30 pts | Min Lot: 0.01 | Step: 0.01
+[2026-08-28 19:41:42 UTC]   [+] GBPUSDm    | Spread:   10 pts | Min Lot: 0.01 | Step: 0.01
+[2026-08-28 19:41:42 UTC]   [+] EURUSDm    | Spread:    8 pts | Min Lot: 0.01 | Step: 0.01
+[2026-08-28 19:41:42 UTC]   [+] USDJPYm    | Spread:   10 pts | Min Lot: 0.01 | Step: 0.01
+[2026-08-28 19:42:41 UTC] ================================================================================
+[2026-08-28 19:42:41 UTC] >>> INITIALIZING EXNESS MT5 CONNECTION...
+[2026-08-28 19:42:41 UTC]   Target Account : #474471944
+[2026-08-28 19:42:41 UTC]   Target Server  : Exness-MT5Trial15
+[2026-08-28 19:42:41 UTC] ================================================================================
+[2026-08-28 19:42:41 UTC]   [OK] Connected via direct path: C:\Program Files\MetaTrader 5 EXNESS\terminal64.exe
+[2026-08-28 19:42:41 UTC] ================================================================================
+[2026-08-28 19:42:41 UTC] >>> EXNESS MT5 LIVE CONNECTION ESTABLISHED
+[2026-08-28 19:42:41 UTC]   Account Number : #474471944
+[2026-08-28 19:42:41 UTC]   Account Name   : Standard
+[2026-08-28 19:42:41 UTC]   Server         : Exness-MT5Trial15
+[2026-08-28 19:42:41 UTC]   Currency       : USD
+[2026-08-28 19:42:41 UTC]   Balance        : $19,150.96
+[2026-08-28 19:42:41 UTC]   Equity         : $19,085.71
+[2026-08-28 19:42:41 UTC]   Free Margin    : $19,026.13
+[2026-08-28 19:42:41 UTC]   Leverage       : 1:100
+[2026-08-28 19:42:41 UTC]   Algo Trading   : [ENABLED]
+[2026-08-28 19:42:41 UTC] ================================================================================
+[2026-08-28 19:42:41 UTC] Active Trading Universe:
+[2026-08-28 19:42:41 UTC]   [+] XAUUSDm    | Spread:  340 pts | Min Lot: 0.01 | Step: 0.01
+[2026-08-28 19:42:41 UTC]   [+] USOILm     | Spread:   20 pts | Min Lot: 0.01 | Step: 0.01
+[2026-08-28 19:42:41 UTC]   [+] XAGUSDm    | Spread:   30 pts | Min Lot: 0.01 | Step: 0.01
+[2026-08-28 19:42:41 UTC]   [+] GBPUSDm    | Spread:   10 pts | Min Lot: 0.01 | Step: 0.01
+[2026-08-28 19:42:41 UTC]   [+] EURUSDm    | Spread:    8 pts | Min Lot: 0.01 | Step: 0.01
+[2026-08-28 19:42:41 UTC]   [+] USDJPYm    | Spread:   10 pts | Min Lot: 0.01 | Step: 0.01
+[2026-08-28 19:50:14 UTC] ================================================================================
+[2026-08-28 19:50:14 UTC] >>> INITIALIZING EXNESS MT5 CONNECTION...
+[2026-08-28 19:50:14 UTC]   Target Account : #474471944
+[2026-08-28 19:50:14 UTC]   Target Server  : Exness-MT5Trial15
+[2026-08-28 19:50:14 UTC] ================================================================================
+[2026-08-28 19:50:15 UTC]   [OK] Connected via direct path: C:\Program Files\MetaTrader 5 EXNESS\terminal64.exe
+[2026-08-28 19:50:15 UTC] ================================================================================
+[2026-08-28 19:50:15 UTC] >>> EXNESS MT5 LIVE CONNECTION ESTABLISHED
+[2026-08-28 19:50:15 UTC]   Account Number : #474471944
+[2026-08-28 19:50:15 UTC]   Account Name   : Standard
+[2026-08-28 19:50:15 UTC]   Server         : Exness-MT5Trial15
+[2026-08-28 19:50:15 UTC]   Currency       : USD
+[2026-08-28 19:50:15 UTC]   Balance        : $19,139.36
+[2026-08-28 19:50:15 UTC]   Equity         : $19,032.06
+[2026-08-28 19:50:15 UTC]   Free Margin    : $18,972.41
+[2026-08-28 19:50:15 UTC]   Leverage       : 1:100
+[2026-08-28 19:50:15 UTC]   Algo Trading   : [ENABLED]
+[2026-08-28 19:50:15 UTC] ================================================================================
+[2026-08-28 19:50:15 UTC] Active Trading Universe:
+[2026-08-28 19:50:15 UTC]   [+] XAUUSDm    | Spread:  260 pts | Min Lot: 0.01 | Step: 0.01
+[2026-08-28 19:50:15 UTC]   [+] USOILm     | Spread:   20 pts | Min Lot: 0.01 | Step: 0.01
+[2026-08-28 19:50:15 UTC]   [+] XAGUSDm    | Spread:   30 pts | Min Lot: 0.01 | Step: 0.01
+[2026-08-28 19:50:15 UTC]   [+] GBPUSDm    | Spread:   10 pts | Min Lot: 0.01 | Step: 0.01
+[2026-08-28 19:50:15 UTC]   [+] EURUSDm    | Spread:    8 pts | Min Lot: 0.01 | Step: 0.01
+[2026-08-28 19:50:15 UTC]   [+] USDJPYm    | Spread:   10 pts | Min Lot: 0.01 | Step: 0.01

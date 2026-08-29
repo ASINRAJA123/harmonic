@@ -823,10 +823,7 @@ HTML_CONTENT = """<!DOCTYPE html>
                 <span class="btn-icon">🪙</span>
                 <span class="btn-label">Bitcoin Dedicated (#472637125)</span>
             </button>
-            <button id="portAll" class="portfolio-btn" onclick="switchPortfolio('ALL')">
-                <span class="btn-icon">📊</span>
-                <span class="btn-label">Combined Overview</span>
-            </button>
+
         </div>
 
         <!-- Metric Cards -->

@@ -346,19 +346,49 @@ HTML_CONTENT = """<!DOCTYPE html>
             gap: 20px;
         }
 
+        .filter-toolbar {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            flex-wrap: wrap;
+        }
+
+        .filter-row-1 {
+            display: flex;
+            gap: 6px;
+            align-items: center;
+        }
+
+        .filter-row-2 {
+            display: flex;
+            gap: 6px;
+            align-items: center;
+        }
+
+        .date-select-dropdown {
+            font-size: 11px;
+            padding: 5px 8px;
+            cursor: pointer;
+            min-width: 140px;
+        }
+
+        .calendar-btn {
+            padding: 5px 10px;
+        }
+
         @media (max-width: 1024px) {
             .main-layout { grid-template-columns: 1fr; }
         }
 
-        /* Mobile Optimization for Phones */
+        /* Mobile Phone Optimization (iPhone / Android) */
         @media (max-width: 768px) {
-            body { padding: 10px; }
+            body { padding: 8px; }
             .container { gap: 12px; }
             header {
                 flex-direction: column;
                 align-items: flex-start;
                 gap: 12px;
-                padding: 14px;
+                padding: 12px 14px;
             }
             .header-actions {
                 width: 100%;
@@ -366,34 +396,80 @@ HTML_CONTENT = """<!DOCTYPE html>
             }
             .brand-title h1 { font-size: 16px; }
             .brand-title p { font-size: 11px; }
+            
             .metrics-grid {
                 grid-template-columns: repeat(2, 1fr);
-                gap: 10px;
+                gap: 8px;
             }
             .metrics-grid .card:last-child {
                 grid-column: span 2;
             }
-            .card { padding: 14px; }
-            .card-value { font-size: 20px; }
-            .main-layout { grid-template-columns: 1fr; gap: 14px; }
-            .terminal-body { height: 260px; }
-            .table-wrap { max-height: 360px; -webkit-overflow-scrolling: touch; }
-            .panel { padding: 14px; }
+            .card { padding: 12px; border-radius: 12px; }
+            .card-label { font-size: 10px; margin-bottom: 4px; }
+            .card-value { font-size: 18px; }
+            .card-sub { font-size: 10px; margin-top: 4px; }
+            
+            .main-layout { 
+                display: flex;
+                flex-direction: column-reverse; /* Puts Active Trades on top so you see trades first on phone! */
+                gap: 14px; 
+            }
+            
+            .side-panels { gap: 14px; }
+            .panel { padding: 12px; border-radius: 14px; }
+            
             .panel-header {
                 flex-direction: column;
                 align-items: flex-start;
                 gap: 10px;
             }
-            .terminal-controls {
+            
+            .filter-toolbar {
                 width: 100%;
-                flex-wrap: wrap;
+                flex-direction: column;
+                gap: 8px;
             }
-            .filter-btn {
+            .filter-row-1 {
+                width: 100%;
+            }
+            .filter-row-1 .filter-btn {
                 flex: 1;
                 text-align: center;
-                padding: 6px 8px;
+                padding: 8px 4px;
+                font-size: 12px;
             }
-            table { min-width: 620px; }
+            .filter-row-2 {
+                width: 100%;
+            }
+            .filter-row-2 .date-select-dropdown {
+                flex: 1;
+                padding: 8px 10px;
+                font-size: 12px;
+            }
+            .filter-row-2 .calendar-btn {
+                padding: 8px 12px;
+                font-size: 12px;
+            }
+            
+            .table-wrap { 
+                max-height: 380px; 
+                -webkit-overflow-scrolling: touch; 
+                border-radius: 8px;
+            }
+            
+            table { 
+                min-width: 620px; 
+                font-size: 11px;
+            }
+            th, td {
+                padding: 8px 8px;
+            }
+            
+            .terminal-panel { border-radius: 14px; }
+            .terminal-header { padding: 10px 14px; flex-direction: column; align-items: flex-start; gap: 8px; }
+            .terminal-controls { width: 100%; }
+            .ctrl-select, .ctrl-input { width: 100%; }
+            .terminal-body { height: 240px; padding: 12px; font-size: 11px; }
         }
 
         /* Live Terminal Box */
@@ -681,15 +757,19 @@ HTML_CONTENT = """<!DOCTYPE html>
                             <div class="panel-title">Active & Recent Trades</div>
                             <span id="tradesSummaryBadge" style="font-size: 11px; padding: 2px 8px; border-radius: 6px; background: rgba(99, 102, 241, 0.15); color: var(--cyan); font-weight: 600;">Loading...</span>
                         </div>
-                        <div class="terminal-controls">
-                            <button id="btnToday" class="filter-btn active" onclick="setTradeFilter('TODAY')">⚡ Today</button>
-                            <button id="btnYesterday" class="filter-btn" onclick="setTradeFilter('YESTERDAY')">📅 Yesterday</button>
-                            <button id="btnAll" class="filter-btn" onclick="setTradeFilter('ALL')">🌐 All</button>
-                            <select id="tradeDateDropdown" class="ctrl-select" style="font-size: 11px; padding: 4px 8px; cursor: pointer;" onchange="onDateDropdownChange(this.value)">
-                                <option value="" disabled selected>📅 Pick Date...</option>
-                            </select>
-                            <button id="btnCalendar" class="filter-btn" onclick="openCalendarPicker()" title="Open Interactive Calendar">🗓️</button>
-                            <input type="date" id="tradeCustomDate" style="position: absolute; opacity: 0; pointer-events: none; width: 0; height: 0;" onchange="onCalendarDatePicked(this.value)" />
+                        <div class="terminal-controls filter-toolbar">
+                            <div class="filter-row-1">
+                                <button id="btnToday" class="filter-btn active" onclick="setTradeFilter('TODAY')">⚡ Today</button>
+                                <button id="btnYesterday" class="filter-btn" onclick="setTradeFilter('YESTERDAY')">📅 Yesterday</button>
+                                <button id="btnAll" class="filter-btn" onclick="setTradeFilter('ALL')">🌐 All</button>
+                            </div>
+                            <div class="filter-row-2">
+                                <select id="tradeDateDropdown" class="ctrl-select date-select-dropdown" onchange="onDateDropdownChange(this.value)">
+                                    <option value="" disabled selected>📅 Pick Date...</option>
+                                </select>
+                                <button id="btnCalendar" class="filter-btn calendar-btn" onclick="openCalendarPicker()" title="Open Interactive Calendar">🗓️ Calendar</button>
+                                <input type="date" id="tradeCustomDate" style="position: absolute; opacity: 0; pointer-events: none; width: 0; height: 0;" onchange="onCalendarDatePicked(this.value)" />
+                            </div>
                         </div>
                     </div>
                     <div class="table-wrap">

@@ -399,6 +399,30 @@ HTML_CONTENT = """<!DOCTYPE html>
             border-color: var(--primary);
         }
 
+        .filter-btn {
+            background: rgba(2, 6, 23, 0.7);
+            border: 1px solid var(--border-subtle);
+            color: var(--text-muted);
+            padding: 4px 10px;
+            border-radius: 8px;
+            font-size: 11px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+
+        .filter-btn:hover {
+            color: var(--text-main);
+            border-color: var(--primary);
+        }
+
+        .filter-btn.active {
+            background: var(--primary);
+            color: #FFFFFF;
+            border-color: var(--primary);
+            box-shadow: 0 0 10px var(--primary-glow);
+        }
+
         .terminal-body {
             height: 480px;
             overflow-y: auto;
@@ -605,15 +629,16 @@ HTML_CONTENT = """<!DOCTYPE html>
             <div class="side-panels">
                 <!-- Live Trades Table -->
                 <div class="panel">
-                    <div class="panel-header">
-                        <div class="panel-title">Active & Recent Trades</div>
+                    <div class="panel-header" style="flex-wrap: wrap; gap: 8px;">
+                        <div style="display: flex; align-items: center; gap: 10px;">
+                            <div class="panel-title">Active & Recent Trades</div>
+                            <span id="tradesSummaryBadge" style="font-size: 11px; padding: 2px 8px; border-radius: 6px; background: rgba(99, 102, 241, 0.15); color: var(--cyan); font-weight: 600;">Loading...</span>
+                        </div>
                         <div class="terminal-controls">
-                            <select id="tradeDateFilter" class="ctrl-select" onchange="toggleCustomDate(); fetchData();">
-                                <option value="TODAY" selected>Today (IST)</option>
-                                <option value="ALL">All Time</option>
-                                <option value="CUSTOM">Pick Date...</option>
-                            </select>
-                            <input type="date" id="tradeCustomDate" class="ctrl-input" style="display:none;" onchange="fetchData()" />
+                            <button id="btnToday" class="filter-btn active" onclick="setTradeFilter('TODAY')">⚡ Today</button>
+                            <button id="btnYesterday" class="filter-btn" onclick="setTradeFilter('YESTERDAY')">📅 Yesterday</button>
+                            <button id="btnAll" class="filter-btn" onclick="setTradeFilter('ALL')">🌐 All</button>
+                            <input type="date" id="tradeCustomDate" class="ctrl-input" style="font-size: 11px; padding: 3px 6px;" onchange="setTradeFilter('CUSTOM')" title="Pick specific date" />
                         </div>
                     </div>
                     <div class="table-wrap">
@@ -652,17 +677,15 @@ HTML_CONTENT = """<!DOCTYPE html>
     </div>
 
     <script>
-        function toggleCustomDate() {
-            const filterVal = document.getElementById('tradeDateFilter').value;
-            const customDateInput = document.getElementById('tradeCustomDate');
-            if (filterVal === 'CUSTOM') {
-                customDateInput.style.display = 'inline-block';
-                if (!customDateInput.value) {
-                    customDateInput.value = new Date().toLocaleDateString('en-CA', {timeZone: 'Asia/Kolkata'});
-                }
-            } else {
-                customDateInput.style.display = 'none';
-            }
+        let currentFilterMode = 'TODAY';
+
+        function setTradeFilter(mode) {
+            currentFilterMode = mode;
+            document.querySelectorAll('.filter-btn').forEach(b => b.classList.remove('active'));
+            if (mode === 'TODAY') document.getElementById('btnToday').classList.add('active');
+            else if (mode === 'YESTERDAY') document.getElementById('btnYesterday').classList.add('active');
+            else if (mode === 'ALL') document.getElementById('btnAll').classList.add('active');
+            fetchData();
         }
 
         async function fetchData() {
@@ -725,33 +748,33 @@ HTML_CONTENT = """<!DOCTYPE html>
                 const tradesBody = document.getElementById('tradesTableBody');
                 
                 if (Array.isArray(trades) && trades.length > 0) {
-                    const filterMode = document.getElementById('tradeDateFilter').value;
-                    const todayIST = new Date().toLocaleDateString('en-CA', {timeZone: 'Asia/Kolkata'}); // YYYY-MM-DD
+                    const now = new Date();
+                    const todayIST = now.toLocaleDateString('en-CA', {timeZone: 'Asia/Kolkata'}); // YYYY-MM-DD
+                    const yesterdayDate = new Date(now.getTime() - 24 * 60 * 60 * 1000);
+                    const yesterdayIST = yesterdayDate.toLocaleDateString('en-CA', {timeZone: 'Asia/Kolkata'});
                     const customDateVal = document.getElementById('tradeCustomDate').value;
                     
-                    // Filter trades by date
+                    // Filter trades by date (matching either entry date OR exit date)
                     trades = trades.filter(tr => {
                         const isActive = ['OPEN', 'BREAK_EVEN', 'RISK_REDUCED', 'PARTIAL_PROFIT'].includes(tr.status);
-                        if (isActive) return true; // Always show active trades
+                        if (isActive) return true; // Always keep live open trades visible!
                         
-                        if (filterMode === 'ALL') return true;
+                        if (currentFilterMode === 'ALL') return true;
                         
-                        let tradeDateIST = '';
-                        if (tr.open_time && tr.open_time.$date) {
-                            tradeDateIST = new Date(tr.open_time.$date).toLocaleDateString('en-CA', {timeZone: 'Asia/Kolkata'});
-                        } else if (tr.close_time && tr.close_time.$date) {
-                            tradeDateIST = new Date(tr.close_time.$date).toLocaleDateString('en-CA', {timeZone: 'Asia/Kolkata'});
-                        }
+                        const openDateIST = tr.open_time && tr.open_time.$date ? new Date(tr.open_time.$date).toLocaleDateString('en-CA', {timeZone: 'Asia/Kolkata'}) : '';
+                        const closeDateIST = tr.close_time && tr.close_time.$date ? new Date(tr.close_time.$date).toLocaleDateString('en-CA', {timeZone: 'Asia/Kolkata'}) : '';
                         
-                        if (filterMode === 'TODAY') {
-                            return tradeDateIST === todayIST;
-                        } else if (filterMode === 'CUSTOM' && customDateVal) {
-                            return tradeDateIST === customDateVal;
+                        if (currentFilterMode === 'TODAY') {
+                            return openDateIST === todayIST || closeDateIST === todayIST;
+                        } else if (currentFilterMode === 'YESTERDAY') {
+                            return openDateIST === yesterdayIST || closeDateIST === yesterdayIST;
+                        } else if (currentFilterMode === 'CUSTOM' && customDateVal) {
+                            return openDateIST === customDateVal || closeDateIST === customDateVal;
                         }
                         return true;
                     });
 
-                    // Sort active trades to top
+                    // Sort active trades to top, then recent to oldest
                     trades.sort((a, b) => {
                         const aActive = ['OPEN', 'BREAK_EVEN', 'RISK_REDUCED', 'PARTIAL_PROFIT'].includes(a.status);
                         const bActive = ['OPEN', 'BREAK_EVEN', 'RISK_REDUCED', 'PARTIAL_PROFIT'].includes(b.status);
@@ -760,8 +783,18 @@ HTML_CONTENT = """<!DOCTYPE html>
                         return 0;
                     });
 
+                    // Update summary badge
+                    const totalDayPnL = trades.reduce((acc, t) => acc + (t.pnl || 0), 0);
+                    const pnlSign = totalDayPnL >= 0 ? '+' : '';
+                    const summaryText = `${trades.length} Trade${trades.length === 1 ? '' : 's'} | PnL: ${pnlSign}$${totalDayPnL.toFixed(2)}`;
+                    const badgeEl = document.getElementById('tradesSummaryBadge');
+                    if (badgeEl) {
+                        badgeEl.innerText = summaryText;
+                        badgeEl.style.color = totalDayPnL > 0 ? 'var(--success)' : (totalDayPnL < 0 ? 'var(--danger)' : 'var(--cyan)');
+                    }
+
                     if (trades.length === 0) {
-                        tradesBody.innerHTML = `<tr><td colspan="9" style="text-align: center; color: var(--text-muted); padding: 14px;">No trades found for selected date filter (${filterMode})</td></tr>`;
+                        tradesBody.innerHTML = `<tr><td colspan="9" style="text-align: center; color: var(--text-muted); padding: 14px;">No trades found for selected filter (${currentFilterMode})</td></tr>`;
                     } else {
                         tradesBody.innerHTML = trades.map(tr => {
                             const isActive = ['OPEN', 'BREAK_EVEN', 'RISK_REDUCED', 'PARTIAL_PROFIT'].includes(tr.status);
@@ -773,7 +806,7 @@ HTML_CONTENT = """<!DOCTYPE html>
                                 const d = new Date(dObj.$date);
                                 const dStr = d.toLocaleDateString('en-IN', {timeZone: 'Asia/Kolkata', day: '2-digit', month: 'short'});
                                 const tStr = d.toLocaleTimeString('en-IN', {timeZone: 'Asia/Kolkata', hour: '2-digit', minute:'2-digit', second:'2-digit', hour12: true});
-                                return filterMode === 'TODAY' ? tStr : `${dStr} ${tStr}`;
+                                return `${dStr} ${tStr}`;
                             };
                             
                             const openTimeIST = formatIST(tr.open_time);
@@ -795,6 +828,8 @@ HTML_CONTENT = """<!DOCTYPE html>
                         }).join('');
                     }
                 } else {
+                    const badgeEl = document.getElementById('tradesSummaryBadge');
+                    if (badgeEl) badgeEl.innerText = '0 Trades';
                     tradesBody.innerHTML = `<tr><td colspan="9" style="text-align: center; color: var(--text-muted); padding: 14px;">No trades recorded</td></tr>`;
                 }
 

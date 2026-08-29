@@ -810,19 +810,6 @@ HTML_CONTENT = """<!DOCTYPE html>
                     const openTimeIST = formatIST(tr.open_time);
                     const closeTimeIST = formatIST(tr.close_time);
 
-                    // Dynamic multi-day context label for partial close trades
-                    let displayStatus = tr.status;
-                    const openDateIST = tr.open_time && tr.open_time.$date ? new Date(tr.open_time.$date).toLocaleDateString('en-CA', {timeZone: 'Asia/Kolkata'}) : '';
-                    const closeDateIST = tr.close_time && tr.close_time.$date ? new Date(tr.close_time.$date).toLocaleDateString('en-CA', {timeZone: 'Asia/Kolkata'}) : '';
-
-                    if (openDateIST !== closeDateIST && closeDateIST) {
-                        if (currentFilterMode === 'YESTERDAY' && openDateIST === yesterdayIST) {
-                            displayStatus = 'PARTIAL_TP (ENTRY)';
-                        } else if (currentFilterMode === 'TODAY' && closeDateIST === todayIST) {
-                            displayStatus = 'CLOSED (RUNNER TP)';
-                        }
-                    }
-
                     return `
                     <tr style="${rowStyle}">
                         <td>#${tr.ticket || '-'}</td>
@@ -833,7 +820,7 @@ HTML_CONTENT = """<!DOCTYPE html>
                         <td style="font-size: 11px; color: var(--text-muted);">${openTimeIST}</td>
                         <td style="font-size: 11px; color: var(--text-muted);">${closeTimeIST}</td>
                         <td style="color: ${tr.pnl > 0 ? 'var(--success)' : (tr.pnl < 0 ? 'var(--danger)' : '#FFF')}">$${(tr.pnl || 0).toFixed(2)}</td>
-                        <td><span class="tag" style="background: rgba(255,255,255,0.1); color: ${statusColor}; font-weight: bold;">${isActive ? '🟢 ' : ''}${displayStatus}</span></td>
+                        <td><span class="tag" style="background: rgba(255,255,255,0.1); color: ${statusColor}; font-weight: bold;">${isActive ? '🟢 ' : ''}${tr.status}</span></td>
                     </tr>
                     `;
                 }).join('');

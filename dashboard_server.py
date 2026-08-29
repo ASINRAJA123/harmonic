@@ -685,7 +685,11 @@ HTML_CONTENT = """<!DOCTYPE html>
                             <button id="btnToday" class="filter-btn active" onclick="setTradeFilter('TODAY')">⚡ Today</button>
                             <button id="btnYesterday" class="filter-btn" onclick="setTradeFilter('YESTERDAY')">📅 Yesterday</button>
                             <button id="btnAll" class="filter-btn" onclick="setTradeFilter('ALL')">🌐 All</button>
-                            <input type="date" id="tradeCustomDate" class="ctrl-input" style="font-size: 11px; padding: 3px 6px;" onchange="setTradeFilter('CUSTOM')" title="Pick specific date" />
+                            <select id="tradeDateDropdown" class="ctrl-select" style="font-size: 11px; padding: 4px 8px; cursor: pointer;" onchange="onDateDropdownChange(this.value)">
+                                <option value="" disabled selected>📅 Pick Date...</option>
+                            </select>
+                            <button id="btnCalendar" class="filter-btn" onclick="openCalendarPicker()" title="Open Interactive Calendar">🗓️</button>
+                            <input type="date" id="tradeCustomDate" style="position: absolute; opacity: 0; pointer-events: none; width: 0; height: 0;" onchange="onCalendarDatePicked(this.value)" />
                         </div>
                     </div>
                     <div class="table-wrap">
@@ -725,15 +729,70 @@ HTML_CONTENT = """<!DOCTYPE html>
 
     <script>
         let currentFilterMode = 'TODAY';
+        let customSelectedDate = '';
         let allTradesCache = [];
 
-        function setTradeFilter(mode) {
+        function setTradeFilter(mode, specificDate = '') {
             currentFilterMode = mode;
+            if (specificDate) customSelectedDate = specificDate;
+            
             document.querySelectorAll('.filter-btn').forEach(b => b.classList.remove('active'));
             if (mode === 'TODAY') document.getElementById('btnToday').classList.add('active');
             else if (mode === 'YESTERDAY') document.getElementById('btnYesterday').classList.add('active');
             else if (mode === 'ALL') document.getElementById('btnAll').classList.add('active');
+            else if (mode === 'CUSTOM') document.getElementById('btnCalendar').classList.add('active');
+            
             renderTrades(allTradesCache);
+        }
+
+        function onDateDropdownChange(val) {
+            if (!val) return;
+            setTradeFilter('CUSTOM', val);
+        }
+
+        function openCalendarPicker() {
+            const input = document.getElementById('tradeCustomDate');
+            if (input) {
+                if (input.showPicker) {
+                    try { input.showPicker(); } catch (e) { input.focus(); input.click(); }
+                } else {
+                    input.focus();
+                    input.click();
+                }
+            }
+        }
+
+        function onCalendarDatePicked(val) {
+            if (!val) return;
+            // Also sync dropdown if matching
+            const select = document.getElementById('tradeDateDropdown');
+            if (select) select.value = val;
+            setTradeFilter('CUSTOM', val);
+        }
+
+        function updateDateDropdown(trades) {
+            const select = document.getElementById('tradeDateDropdown');
+            if (!select || !Array.isArray(trades)) return;
+            
+            const datesSet = new Set();
+            trades.forEach(tr => {
+                if (tr.open_time && tr.open_time.$date) {
+                    datesSet.add(new Date(tr.open_time.$date).toLocaleDateString('en-CA', {timeZone: 'Asia/Kolkata'}));
+                }
+            });
+            
+            const dates = Array.from(datesSet).sort().reverse();
+            const currentVal = select.value || customSelectedDate;
+            
+            let html = `<option value="" disabled ${!currentVal ? 'selected' : ''}>📅 Pick Date...</option>`;
+            dates.forEach(d => {
+                const parts = d.split('-');
+                const dObj = new Date(parseInt(parts[0]), parseInt(parts[1]) - 1, parseInt(parts[2]));
+                const formatted = dObj.toLocaleDateString('en-IN', {day: '2-digit', month: 'short'});
+                const count = trades.filter(tr => tr.open_time && tr.open_time.$date && new Date(tr.open_time.$date).toLocaleDateString('en-CA', {timeZone: 'Asia/Kolkata'}) === d).length;
+                html += `<option value="${d}" ${currentVal === d ? 'selected' : ''}>${formatted} (${count} Trades)</option>`;
+            });
+            select.innerHTML = html;
         }
 
         function renderTrades(rawTrades) {
@@ -751,7 +810,6 @@ HTML_CONTENT = """<!DOCTYPE html>
             const todayIST = now.toLocaleDateString('en-CA', {timeZone: 'Asia/Kolkata'}); // YYYY-MM-DD
             const yesterdayDate = new Date(now.getTime() - 24 * 60 * 60 * 1000);
             const yesterdayIST = yesterdayDate.toLocaleDateString('en-CA', {timeZone: 'Asia/Kolkata'});
-            const customDateVal = document.getElementById('tradeCustomDate').value;
 
             // Filter trades strictly by Entry / Session Date (IST)
             let filtered = rawTrades.filter(tr => {
@@ -766,8 +824,8 @@ HTML_CONTENT = """<!DOCTYPE html>
                     return openDateIST === todayIST;
                 } else if (currentFilterMode === 'YESTERDAY') {
                     return openDateIST === yesterdayIST;
-                } else if (currentFilterMode === 'CUSTOM' && customDateVal) {
-                    return openDateIST === customDateVal;
+                } else if (currentFilterMode === 'CUSTOM' && customSelectedDate) {
+                    return openDateIST === customSelectedDate;
                 }
                 return true;
             });
@@ -884,6 +942,7 @@ HTML_CONTENT = """<!DOCTYPE html>
                 // 3. Fetch Trades & Cache
                 const resTrades = await fetch('/api/trades');
                 allTradesCache = await resTrades.json();
+                updateDateDropdown(allTradesCache);
                 renderTrades(allTradesCache);
 
                 // 4. Fetch Patterns

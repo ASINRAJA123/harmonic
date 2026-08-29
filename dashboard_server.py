@@ -607,6 +607,14 @@ HTML_CONTENT = """<!DOCTYPE html>
                 <div class="panel">
                     <div class="panel-header">
                         <div class="panel-title">Active & Recent Trades</div>
+                        <div class="terminal-controls">
+                            <select id="tradeDateFilter" class="ctrl-select" onchange="toggleCustomDate(); fetchData();">
+                                <option value="TODAY" selected>Today (IST)</option>
+                                <option value="ALL">All Time</option>
+                                <option value="CUSTOM">Pick Date...</option>
+                            </select>
+                            <input type="date" id="tradeCustomDate" class="ctrl-input" style="display:none;" onchange="fetchData()" />
+                        </div>
                     </div>
                     <div class="table-wrap">
                         <table>
@@ -644,6 +652,19 @@ HTML_CONTENT = """<!DOCTYPE html>
     </div>
 
     <script>
+        function toggleCustomDate() {
+            const filterVal = document.getElementById('tradeDateFilter').value;
+            const customDateInput = document.getElementById('tradeCustomDate');
+            if (filterVal === 'CUSTOM') {
+                customDateInput.style.display = 'inline-block';
+                if (!customDateInput.value) {
+                    customDateInput.value = new Date().toLocaleDateString('en-CA', {timeZone: 'Asia/Kolkata'});
+                }
+            } else {
+                customDateInput.style.display = 'none';
+            }
+        }
+
         async function fetchData() {
             try {
                 // 1. Fetch Status
@@ -700,47 +721,81 @@ HTML_CONTENT = """<!DOCTYPE html>
 
                 // 3. Fetch Trades
                 const resTrades = await fetch('/api/trades');
-                const trades = await resTrades.json();
+                let trades = await resTrades.json();
                 const tradesBody = document.getElementById('tradesTableBody');
+                
                 if (Array.isArray(trades) && trades.length > 0) {
+                    const filterMode = document.getElementById('tradeDateFilter').value;
+                    const todayIST = new Date().toLocaleDateString('en-CA', {timeZone: 'Asia/Kolkata'}); // YYYY-MM-DD
+                    const customDateVal = document.getElementById('tradeCustomDate').value;
+                    
+                    // Filter trades by date
+                    trades = trades.filter(tr => {
+                        const isActive = ['OPEN', 'BREAK_EVEN', 'RISK_REDUCED', 'PARTIAL_PROFIT'].includes(tr.status);
+                        if (isActive) return true; // Always show active trades
+                        
+                        if (filterMode === 'ALL') return true;
+                        
+                        let tradeDateIST = '';
+                        if (tr.open_time && tr.open_time.$date) {
+                            tradeDateIST = new Date(tr.open_time.$date).toLocaleDateString('en-CA', {timeZone: 'Asia/Kolkata'});
+                        } else if (tr.close_time && tr.close_time.$date) {
+                            tradeDateIST = new Date(tr.close_time.$date).toLocaleDateString('en-CA', {timeZone: 'Asia/Kolkata'});
+                        }
+                        
+                        if (filterMode === 'TODAY') {
+                            return tradeDateIST === todayIST;
+                        } else if (filterMode === 'CUSTOM' && customDateVal) {
+                            return tradeDateIST === customDateVal;
+                        }
+                        return true;
+                    });
+
                     // Sort active trades to top
                     trades.sort((a, b) => {
-                        const aActive = ['OPEN', 'BREAK_EVEN', 'RISK_REDUCED'].includes(a.status);
-                        const bActive = ['OPEN', 'BREAK_EVEN', 'RISK_REDUCED'].includes(b.status);
+                        const aActive = ['OPEN', 'BREAK_EVEN', 'RISK_REDUCED', 'PARTIAL_PROFIT'].includes(a.status);
+                        const bActive = ['OPEN', 'BREAK_EVEN', 'RISK_REDUCED', 'PARTIAL_PROFIT'].includes(b.status);
                         if (aActive && !bActive) return -1;
                         if (!aActive && bActive) return 1;
                         return 0;
                     });
 
-                    tradesBody.innerHTML = trades.map(tr => {
-                        const isActive = ['OPEN', 'BREAK_EVEN', 'RISK_REDUCED'].includes(tr.status);
-                        const rowStyle = isActive ? 'background: rgba(99, 102, 241, 0.1);' : '';
-                        const statusColor = isActive ? 'var(--cyan)' : (tr.pnl > 0 ? 'var(--success)' : (tr.pnl < 0 ? 'var(--danger)' : '#FFF'));
-                        
-                        let openTimeIST = '-';
-                        if (tr.open_time && tr.open_time.$date) {
-                            openTimeIST = new Date(tr.open_time.$date).toLocaleString('en-IN', {timeZone: 'Asia/Kolkata', hour: '2-digit', minute:'2-digit', second:'2-digit', hour12: true});
-                        }
-                        
-                        let closeTimeIST = '-';
-                        if (tr.close_time && tr.close_time.$date) {
-                            closeTimeIST = new Date(tr.close_time.$date).toLocaleString('en-IN', {timeZone: 'Asia/Kolkata', hour: '2-digit', minute:'2-digit', second:'2-digit', hour12: true});
-                        }
+                    if (trades.length === 0) {
+                        tradesBody.innerHTML = `<tr><td colspan="9" style="text-align: center; color: var(--text-muted); padding: 14px;">No trades found for selected date filter (${filterMode})</td></tr>`;
+                    } else {
+                        tradesBody.innerHTML = trades.map(tr => {
+                            const isActive = ['OPEN', 'BREAK_EVEN', 'RISK_REDUCED', 'PARTIAL_PROFIT'].includes(tr.status);
+                            const rowStyle = isActive ? 'background: rgba(99, 102, 241, 0.1);' : '';
+                            const statusColor = isActive ? 'var(--cyan)' : (tr.pnl > 0 ? 'var(--success)' : (tr.pnl < 0 ? 'var(--danger)' : '#FFF'));
+                            
+                            const formatIST = (dObj) => {
+                                if (!dObj || !dObj.$date) return '-';
+                                const d = new Date(dObj.$date);
+                                const dStr = d.toLocaleDateString('en-IN', {timeZone: 'Asia/Kolkata', day: '2-digit', month: 'short'});
+                                const tStr = d.toLocaleTimeString('en-IN', {timeZone: 'Asia/Kolkata', hour: '2-digit', minute:'2-digit', second:'2-digit', hour12: true});
+                                return filterMode === 'TODAY' ? tStr : `${dStr} ${tStr}`;
+                            };
+                            
+                            const openTimeIST = formatIST(tr.open_time);
+                            const closeTimeIST = formatIST(tr.close_time);
 
-                        return `
-                        <tr style="${rowStyle}">
-                            <td>#${tr.ticket || '-'}</td>
-                            <td style="font-weight: 600;">${tr.symbol}</td>
-                            <td><span class="tag ${tr.direction}">${tr.direction}</span></td>
-                            <td>${tr.pattern}</td>
-                            <td>${tr.lot_size}</td>
-                            <td style="font-size: 11px; color: var(--text-muted);">${openTimeIST}</td>
-                            <td style="font-size: 11px; color: var(--text-muted);">${closeTimeIST}</td>
-                            <td style="color: ${tr.pnl > 0 ? 'var(--success)' : (tr.pnl < 0 ? 'var(--danger)' : '#FFF')}">$${(tr.pnl || 0).toFixed(2)}</td>
-                            <td><span class="tag" style="background: rgba(255,255,255,0.1); color: ${statusColor}; font-weight: bold;">${isActive ? '🟢 ' : ''}${tr.status}</span></td>
-                        </tr>
-                        `;
-                    }).join('');
+                            return `
+                            <tr style="${rowStyle}">
+                                <td>#${tr.ticket || '-'}</td>
+                                <td style="font-weight: 600;">${tr.symbol}</td>
+                                <td><span class="tag ${tr.direction}">${tr.direction}</span></td>
+                                <td>${tr.pattern}</td>
+                                <td>${tr.lot_size}</td>
+                                <td style="font-size: 11px; color: var(--text-muted);">${openTimeIST}</td>
+                                <td style="font-size: 11px; color: var(--text-muted);">${closeTimeIST}</td>
+                                <td style="color: ${tr.pnl > 0 ? 'var(--success)' : (tr.pnl < 0 ? 'var(--danger)' : '#FFF')}">$${(tr.pnl || 0).toFixed(2)}</td>
+                                <td><span class="tag" style="background: rgba(255,255,255,0.1); color: ${statusColor}; font-weight: bold;">${isActive ? '🟢 ' : ''}${tr.status}</span></td>
+                            </tr>
+                            `;
+                        }).join('');
+                    }
+                } else {
+                    tradesBody.innerHTML = `<tr><td colspan="9" style="text-align: center; color: var(--text-muted); padding: 14px;">No trades recorded</td></tr>`;
                 }
 
                 // 4. Fetch Patterns

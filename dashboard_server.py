@@ -277,10 +277,10 @@ HTML_CONTENT = """<!DOCTYPE html>
             100% { transform: scale(0.95); opacity: 0.8; }
         }
 
-        /* Metric Cards Grid */
+        /* Metrics Top Banner Grid */
         .metrics-grid {
             display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+            grid-template-columns: repeat(5, 1fr);
             gap: 16px;
         }
 
@@ -292,11 +292,12 @@ HTML_CONTENT = """<!DOCTYPE html>
             padding: 20px;
             position: relative;
             overflow: hidden;
-            transition: all 0.3s ease;
+            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
         }
 
         .card:hover {
             border-color: var(--border-glow);
+            background: var(--bg-card-hover);
             transform: translateY(-2px);
             box-shadow: 0 12px 28px rgba(0, 0, 0, 0.4);
         }
@@ -341,12 +342,58 @@ HTML_CONTENT = """<!DOCTYPE html>
         /* Main Workspace: 2-Column Split */
         .main-layout {
             display: grid;
-            grid-template-columns: 1.6fr 1fr;
+            grid-template-columns: 1.4fr 1.6fr;
             gap: 20px;
         }
 
         @media (max-width: 1024px) {
             .main-layout { grid-template-columns: 1fr; }
+        }
+
+        /* Mobile Optimization for Phones */
+        @media (max-width: 768px) {
+            body { padding: 10px; }
+            .container { gap: 12px; }
+            header {
+                flex-direction: column;
+                align-items: flex-start;
+                gap: 12px;
+                padding: 14px;
+            }
+            .header-actions {
+                width: 100%;
+                justify-content: space-between;
+            }
+            .brand-title h1 { font-size: 16px; }
+            .brand-title p { font-size: 11px; }
+            .metrics-grid {
+                grid-template-columns: repeat(2, 1fr);
+                gap: 10px;
+            }
+            .metrics-grid .card:last-child {
+                grid-column: span 2;
+            }
+            .card { padding: 14px; }
+            .card-value { font-size: 20px; }
+            .main-layout { grid-template-columns: 1fr; gap: 14px; }
+            .terminal-body { height: 260px; }
+            .table-wrap { max-height: 360px; -webkit-overflow-scrolling: touch; }
+            .panel { padding: 14px; }
+            .panel-header {
+                flex-direction: column;
+                align-items: flex-start;
+                gap: 10px;
+            }
+            .terminal-controls {
+                width: 100%;
+                flex-wrap: wrap;
+            }
+            .filter-btn {
+                flex: 1;
+                text-align: center;
+                padding: 6px 8px;
+            }
+            table { min-width: 620px; }
         }
 
         /* Live Terminal Box */
@@ -678,6 +725,7 @@ HTML_CONTENT = """<!DOCTYPE html>
 
     <script>
         let currentFilterMode = 'TODAY';
+        let allTradesCache = [];
 
         function setTradeFilter(mode) {
             currentFilterMode = mode;
@@ -685,7 +733,112 @@ HTML_CONTENT = """<!DOCTYPE html>
             if (mode === 'TODAY') document.getElementById('btnToday').classList.add('active');
             else if (mode === 'YESTERDAY') document.getElementById('btnYesterday').classList.add('active');
             else if (mode === 'ALL') document.getElementById('btnAll').classList.add('active');
-            fetchData();
+            renderTrades(allTradesCache);
+        }
+
+        function renderTrades(rawTrades) {
+            const tradesBody = document.getElementById('tradesTableBody');
+            if (!tradesBody) return;
+            
+            if (!Array.isArray(rawTrades) || rawTrades.length === 0) {
+                const badgeEl = document.getElementById('tradesSummaryBadge');
+                if (badgeEl) badgeEl.innerText = '0 Trades';
+                tradesBody.innerHTML = `<tr><td colspan="9" style="text-align: center; color: var(--text-muted); padding: 14px;">No trades recorded</td></tr>`;
+                return;
+            }
+
+            const now = new Date();
+            const todayIST = now.toLocaleDateString('en-CA', {timeZone: 'Asia/Kolkata'}); // YYYY-MM-DD
+            const yesterdayDate = new Date(now.getTime() - 24 * 60 * 60 * 1000);
+            const yesterdayIST = yesterdayDate.toLocaleDateString('en-CA', {timeZone: 'Asia/Kolkata'});
+            const customDateVal = document.getElementById('tradeCustomDate').value;
+
+            // Filter trades by selected mode
+            let filtered = rawTrades.filter(tr => {
+                const isActive = ['OPEN', 'BREAK_EVEN', 'RISK_REDUCED', 'PARTIAL_PROFIT'].includes(tr.status);
+                if (isActive) return true; // Always keep open positions visible
+                
+                if (currentFilterMode === 'ALL') return true;
+                
+                const openDateIST = tr.open_time && tr.open_time.$date ? new Date(tr.open_time.$date).toLocaleDateString('en-CA', {timeZone: 'Asia/Kolkata'}) : '';
+                const closeDateIST = tr.close_time && tr.close_time.$date ? new Date(tr.close_time.$date).toLocaleDateString('en-CA', {timeZone: 'Asia/Kolkata'}) : '';
+                
+                if (currentFilterMode === 'TODAY') {
+                    return openDateIST === todayIST || closeDateIST === todayIST;
+                } else if (currentFilterMode === 'YESTERDAY') {
+                    return openDateIST === yesterdayIST || closeDateIST === yesterdayIST;
+                } else if (currentFilterMode === 'CUSTOM' && customDateVal) {
+                    return openDateIST === customDateVal || closeDateIST === customDateVal;
+                }
+                return true;
+            });
+
+            // Sort active trades to top, then newest to oldest
+            filtered.sort((a, b) => {
+                const aActive = ['OPEN', 'BREAK_EVEN', 'RISK_REDUCED', 'PARTIAL_PROFIT'].includes(a.status);
+                const bActive = ['OPEN', 'BREAK_EVEN', 'RISK_REDUCED', 'PARTIAL_PROFIT'].includes(b.status);
+                if (aActive && !bActive) return -1;
+                if (!aActive && bActive) return 1;
+                return 0;
+            });
+
+            // Calculate & update summary badge
+            const totalDayPnL = filtered.reduce((acc, t) => acc + (t.pnl || 0), 0);
+            const pnlSign = totalDayPnL >= 0 ? '+' : '';
+            const summaryText = `${filtered.length} Trade${filtered.length === 1 ? '' : 's'} | PnL: ${pnlSign}$${totalDayPnL.toFixed(2)}`;
+            const badgeEl = document.getElementById('tradesSummaryBadge');
+            if (badgeEl) {
+                badgeEl.innerText = summaryText;
+                badgeEl.style.color = totalDayPnL > 0 ? 'var(--success)' : (totalDayPnL < 0 ? 'var(--danger)' : 'var(--cyan)');
+            }
+
+            if (filtered.length === 0) {
+                tradesBody.innerHTML = `<tr><td colspan="9" style="text-align: center; color: var(--text-muted); padding: 14px;">No trades found for selected filter (${currentFilterMode})</td></tr>`;
+            } else {
+                tradesBody.innerHTML = filtered.map(tr => {
+                    const isActive = ['OPEN', 'BREAK_EVEN', 'RISK_REDUCED', 'PARTIAL_PROFIT'].includes(tr.status);
+                    const rowStyle = isActive ? 'background: rgba(99, 102, 241, 0.1);' : '';
+                    const statusColor = isActive ? 'var(--cyan)' : (tr.pnl > 0 ? 'var(--success)' : (tr.pnl < 0 ? 'var(--danger)' : '#FFF'));
+                    
+                    const formatIST = (dObj) => {
+                        if (!dObj || !dObj.$date) return '-';
+                        const d = new Date(dObj.$date);
+                        const dStr = d.toLocaleDateString('en-IN', {timeZone: 'Asia/Kolkata', day: '2-digit', month: 'short'});
+                        const tStr = d.toLocaleTimeString('en-IN', {timeZone: 'Asia/Kolkata', hour: '2-digit', minute:'2-digit', second:'2-digit', hour12: true});
+                        return `${dStr} ${tStr}`;
+                    };
+                    
+                    const openTimeIST = formatIST(tr.open_time);
+                    const closeTimeIST = formatIST(tr.close_time);
+
+                    // Dynamic multi-day context label for partial close trades
+                    let displayStatus = tr.status;
+                    const openDateIST = tr.open_time && tr.open_time.$date ? new Date(tr.open_time.$date).toLocaleDateString('en-CA', {timeZone: 'Asia/Kolkata'}) : '';
+                    const closeDateIST = tr.close_time && tr.close_time.$date ? new Date(tr.close_time.$date).toLocaleDateString('en-CA', {timeZone: 'Asia/Kolkata'}) : '';
+
+                    if (openDateIST !== closeDateIST && closeDateIST) {
+                        if (currentFilterMode === 'YESTERDAY' && openDateIST === yesterdayIST) {
+                            displayStatus = 'PARTIAL_TP (ENTRY)';
+                        } else if (currentFilterMode === 'TODAY' && closeDateIST === todayIST) {
+                            displayStatus = 'CLOSED (RUNNER TP)';
+                        }
+                    }
+
+                    return `
+                    <tr style="${rowStyle}">
+                        <td>#${tr.ticket || '-'}</td>
+                        <td style="font-weight: 600;">${tr.symbol}</td>
+                        <td><span class="tag ${tr.direction}">${tr.direction}</span></td>
+                        <td>${tr.pattern}</td>
+                        <td>${tr.lot_size}</td>
+                        <td style="font-size: 11px; color: var(--text-muted);">${openTimeIST}</td>
+                        <td style="font-size: 11px; color: var(--text-muted);">${closeTimeIST}</td>
+                        <td style="color: ${tr.pnl > 0 ? 'var(--success)' : (tr.pnl < 0 ? 'var(--danger)' : '#FFF')}">$${(tr.pnl || 0).toFixed(2)}</td>
+                        <td><span class="tag" style="background: rgba(255,255,255,0.1); color: ${statusColor}; font-weight: bold;">${isActive ? '🟢 ' : ''}${displayStatus}</span></td>
+                    </tr>
+                    `;
+                }).join('');
+            }
         }
 
         async function fetchData() {
@@ -742,96 +895,10 @@ HTML_CONTENT = """<!DOCTYPE html>
                     termBody.scrollTop = termBody.scrollHeight;
                 }
 
-                // 3. Fetch Trades
+                // 3. Fetch Trades & Cache
                 const resTrades = await fetch('/api/trades');
-                let trades = await resTrades.json();
-                const tradesBody = document.getElementById('tradesTableBody');
-                
-                if (Array.isArray(trades) && trades.length > 0) {
-                    const now = new Date();
-                    const todayIST = now.toLocaleDateString('en-CA', {timeZone: 'Asia/Kolkata'}); // YYYY-MM-DD
-                    const yesterdayDate = new Date(now.getTime() - 24 * 60 * 60 * 1000);
-                    const yesterdayIST = yesterdayDate.toLocaleDateString('en-CA', {timeZone: 'Asia/Kolkata'});
-                    const customDateVal = document.getElementById('tradeCustomDate').value;
-                    
-                    // Filter trades by date (matching either entry date OR exit date)
-                    trades = trades.filter(tr => {
-                        const isActive = ['OPEN', 'BREAK_EVEN', 'RISK_REDUCED', 'PARTIAL_PROFIT'].includes(tr.status);
-                        if (isActive) return true; // Always keep live open trades visible!
-                        
-                        if (currentFilterMode === 'ALL') return true;
-                        
-                        const openDateIST = tr.open_time && tr.open_time.$date ? new Date(tr.open_time.$date).toLocaleDateString('en-CA', {timeZone: 'Asia/Kolkata'}) : '';
-                        const closeDateIST = tr.close_time && tr.close_time.$date ? new Date(tr.close_time.$date).toLocaleDateString('en-CA', {timeZone: 'Asia/Kolkata'}) : '';
-                        
-                        if (currentFilterMode === 'TODAY') {
-                            return openDateIST === todayIST || closeDateIST === todayIST;
-                        } else if (currentFilterMode === 'YESTERDAY') {
-                            return openDateIST === yesterdayIST || closeDateIST === yesterdayIST;
-                        } else if (currentFilterMode === 'CUSTOM' && customDateVal) {
-                            return openDateIST === customDateVal || closeDateIST === customDateVal;
-                        }
-                        return true;
-                    });
-
-                    // Sort active trades to top, then recent to oldest
-                    trades.sort((a, b) => {
-                        const aActive = ['OPEN', 'BREAK_EVEN', 'RISK_REDUCED', 'PARTIAL_PROFIT'].includes(a.status);
-                        const bActive = ['OPEN', 'BREAK_EVEN', 'RISK_REDUCED', 'PARTIAL_PROFIT'].includes(b.status);
-                        if (aActive && !bActive) return -1;
-                        if (!aActive && bActive) return 1;
-                        return 0;
-                    });
-
-                    // Update summary badge
-                    const totalDayPnL = trades.reduce((acc, t) => acc + (t.pnl || 0), 0);
-                    const pnlSign = totalDayPnL >= 0 ? '+' : '';
-                    const summaryText = `${trades.length} Trade${trades.length === 1 ? '' : 's'} | PnL: ${pnlSign}$${totalDayPnL.toFixed(2)}`;
-                    const badgeEl = document.getElementById('tradesSummaryBadge');
-                    if (badgeEl) {
-                        badgeEl.innerText = summaryText;
-                        badgeEl.style.color = totalDayPnL > 0 ? 'var(--success)' : (totalDayPnL < 0 ? 'var(--danger)' : 'var(--cyan)');
-                    }
-
-                    if (trades.length === 0) {
-                        tradesBody.innerHTML = `<tr><td colspan="9" style="text-align: center; color: var(--text-muted); padding: 14px;">No trades found for selected filter (${currentFilterMode})</td></tr>`;
-                    } else {
-                        tradesBody.innerHTML = trades.map(tr => {
-                            const isActive = ['OPEN', 'BREAK_EVEN', 'RISK_REDUCED', 'PARTIAL_PROFIT'].includes(tr.status);
-                            const rowStyle = isActive ? 'background: rgba(99, 102, 241, 0.1);' : '';
-                            const statusColor = isActive ? 'var(--cyan)' : (tr.pnl > 0 ? 'var(--success)' : (tr.pnl < 0 ? 'var(--danger)' : '#FFF'));
-                            
-                            const formatIST = (dObj) => {
-                                if (!dObj || !dObj.$date) return '-';
-                                const d = new Date(dObj.$date);
-                                const dStr = d.toLocaleDateString('en-IN', {timeZone: 'Asia/Kolkata', day: '2-digit', month: 'short'});
-                                const tStr = d.toLocaleTimeString('en-IN', {timeZone: 'Asia/Kolkata', hour: '2-digit', minute:'2-digit', second:'2-digit', hour12: true});
-                                return `${dStr} ${tStr}`;
-                            };
-                            
-                            const openTimeIST = formatIST(tr.open_time);
-                            const closeTimeIST = formatIST(tr.close_time);
-
-                            return `
-                            <tr style="${rowStyle}">
-                                <td>#${tr.ticket || '-'}</td>
-                                <td style="font-weight: 600;">${tr.symbol}</td>
-                                <td><span class="tag ${tr.direction}">${tr.direction}</span></td>
-                                <td>${tr.pattern}</td>
-                                <td>${tr.lot_size}</td>
-                                <td style="font-size: 11px; color: var(--text-muted);">${openTimeIST}</td>
-                                <td style="font-size: 11px; color: var(--text-muted);">${closeTimeIST}</td>
-                                <td style="color: ${tr.pnl > 0 ? 'var(--success)' : (tr.pnl < 0 ? 'var(--danger)' : '#FFF')}">$${(tr.pnl || 0).toFixed(2)}</td>
-                                <td><span class="tag" style="background: rgba(255,255,255,0.1); color: ${statusColor}; font-weight: bold;">${isActive ? '🟢 ' : ''}${tr.status}</span></td>
-                            </tr>
-                            `;
-                        }).join('');
-                    }
-                } else {
-                    const badgeEl = document.getElementById('tradesSummaryBadge');
-                    if (badgeEl) badgeEl.innerText = '0 Trades';
-                    tradesBody.innerHTML = `<tr><td colspan="9" style="text-align: center; color: var(--text-muted); padding: 14px;">No trades recorded</td></tr>`;
-                }
+                allTradesCache = await resTrades.json();
+                renderTrades(allTradesCache);
 
                 // 4. Fetch Patterns
                 const resPats = await fetch('/api/patterns');

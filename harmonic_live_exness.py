@@ -453,6 +453,8 @@ def open_harmonic_trade(symbol, pattern, current_bid, current_ask):
     timeout_minutes = int(pattern_len * 3.0 * 15)
     timeout_time = datetime.datetime.now(datetime.timezone.utc) + datetime.timedelta(minutes=timeout_minutes)
     ACTIVE_TRADE_TIMEOUTS[result.order] = timeout_time
+    if getattr(result, "deal", None):
+        ACTIVE_TRADE_TIMEOUTS[result.deal] = timeout_time
 
     # Record to MongoDB
     mongo_logger.record_trade_open({
@@ -583,9 +585,10 @@ def manage_active_positions(active_symbols):
                         mongo_logger.record_trade_update(ticket, {"status": "PARTIAL_PROFIT"})
 
         # Stage 2: Timeout Exit (Wait exactly 3x the pattern formation time)
-        if pos_id in ACTIVE_TRADE_TIMEOUTS:
-            if datetime.datetime.now(datetime.timezone.utc) > ACTIVE_TRADE_TIMEOUTS[pos_id]:
-                log_msg(f"\n>>> [TIMEOUT EXIT] Position ID #{pos_id} ({sym}) exceeded 3x pattern length! Closing at market.", level="TRADE")
+        timeout_deadline = ACTIVE_TRADE_TIMEOUTS.get(pos_id) or ACTIVE_TRADE_TIMEOUTS.get(ticket)
+        if timeout_deadline:
+            if datetime.datetime.now(datetime.timezone.utc) > timeout_deadline:
+                log_msg(f"\n>>> [TIMEOUT EXIT] Position #{ticket} (ID #{pos_id}, {sym}) exceeded 3x pattern length! Closing at market.", level="TRADE")
                 close_req = {
                     "action": mt5.TRADE_ACTION_DEAL,
                     "symbol": sym,
@@ -602,6 +605,7 @@ def manage_active_positions(active_symbols):
                 t_res = mt5.order_send(close_req)
                 if t_res and t_res.retcode == mt5.TRADE_RETCODE_DONE:
                     ACTIVE_TRADE_TIMEOUTS.pop(pos_id, None)
+                    ACTIVE_TRADE_TIMEOUTS.pop(ticket, None)
                     mongo_logger.record_trade_update(ticket, {"status": "TIMEOUT_CLOSED"})
 
 

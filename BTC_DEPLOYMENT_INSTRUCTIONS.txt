@@ -1,0 +1,44 @@
+===================================================================================
+HARMONIC EA V3 — standalone DEDICATED BITCOIN (BTC) DEPLOYMENT GUIDE
+===================================================================================
+This guide explains how to set up the dedicated Bitcoin trading bot on a separate
+Exness account alongside your existing Forex bot, using the unified dashboard.
+
+---
+1. CORE CONSOLE PORT & WEB URL
+---
+* Unified Web Dashboard: Run ONE instance of dashboard_server.py on Port 12000.
+* You do NOT need a second dashboard process! The switcher at http://localhost:12000
+  displays both accounts by toggling the portfolio view in the browser.
+* Dashboard Port: 12000 (No conflicts).
+
+---
+2. ACCOUNT & SERVER DETAILS FOR BITCOIN
+---
+* Dedicated Login ID : 472637125
+* Dedicated Server   : Exness-MT5Trial16
+* Symbol             : BTCUSDm
+* Magic Number       : 888444 (Forex bot uses 888333)
+
+---
+3. STEP-BY-STEP SECOND MT5 TERMINAL SETUP ON VPS
+---
+1. Open Windows Explorer on the VPS and go to: C:\Program Files
+2. Right-click the folder "MetaTrader 5 EXNESS" -> click Copy.
+3. Right-click in the empty space -> click Paste.
+4. Rename this new folder to: "MetaTrader 5 EXNESS BTC"
+5. Open "C:\Program Files\MetaTrader 5 EXNESS BTC" and double-click "terminal64.exe".
+6. In this new terminal, log in:
+   - Login: 472637125
+   - Password: [Your Exness Account Password]
+   - Server: Exness-MT5Trial16
+
+---
+4. EXECUTION INSTRUCTIONS
+---
+* To start the Bitcoin bot: Run "START_BTC_BOT_BACKGROUND.vbs" (silent background)
+  or "START_BTC_BOT_VISIBLE.bat" (visible command window).
+* To start the dashboard: Run "START_DASHBOARD.bat".
+* To stop the Bitcoin bot & dashboard: Run "STOP_ALL_INCLUDING_BTC.bat" (leaves your
+  Forex bot untouched).
+===================================================================================

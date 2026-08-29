@@ -753,22 +753,21 @@ HTML_CONTENT = """<!DOCTYPE html>
             const yesterdayIST = yesterdayDate.toLocaleDateString('en-CA', {timeZone: 'Asia/Kolkata'});
             const customDateVal = document.getElementById('tradeCustomDate').value;
 
-            // Filter trades by selected mode
+            // Filter trades strictly by Entry / Session Date (IST)
             let filtered = rawTrades.filter(tr => {
                 const isActive = ['OPEN', 'BREAK_EVEN', 'RISK_REDUCED', 'PARTIAL_PROFIT'].includes(tr.status);
-                if (isActive) return true; // Always keep open positions visible
+                if (isActive) return true; // Always keep active positions visible
                 
                 if (currentFilterMode === 'ALL') return true;
                 
                 const openDateIST = tr.open_time && tr.open_time.$date ? new Date(tr.open_time.$date).toLocaleDateString('en-CA', {timeZone: 'Asia/Kolkata'}) : '';
-                const closeDateIST = tr.close_time && tr.close_time.$date ? new Date(tr.close_time.$date).toLocaleDateString('en-CA', {timeZone: 'Asia/Kolkata'}) : '';
                 
                 if (currentFilterMode === 'TODAY') {
-                    return openDateIST === todayIST || closeDateIST === todayIST;
+                    return openDateIST === todayIST;
                 } else if (currentFilterMode === 'YESTERDAY') {
-                    return openDateIST === yesterdayIST || closeDateIST === yesterdayIST;
+                    return openDateIST === yesterdayIST;
                 } else if (currentFilterMode === 'CUSTOM' && customDateVal) {
-                    return openDateIST === customDateVal || closeDateIST === customDateVal;
+                    return openDateIST === customDateVal;
                 }
                 return true;
             });

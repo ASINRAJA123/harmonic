@@ -89,7 +89,7 @@ def get_status(portfolio: str = "FOREX"):
             open_count = 0
             free_margin = nifty_equity
             
-            # Calculate online status dynamically based on 45-second heartbeat window
+            # Calculate online status dynamically based on 45-second heartbeat window (UTC normalized)
             is_bot_online = False
             if last_time:
                 try:
@@ -98,10 +98,9 @@ def get_status(portfolio: str = "FOREX"):
                     else:
                         hb_dt = datetime.datetime.fromisoformat(str(last_time).replace('Z', ''))
                     
-                    if hb_dt.tzinfo is None:
-                        diff_sec = (datetime.datetime.now() - hb_dt).total_seconds()
-                    else:
-                        diff_sec = (datetime.datetime.now(datetime.timezone.utc) - hb_dt).total_seconds()
+                    now_utc = datetime.datetime.now(datetime.timezone.utc)
+                    hb_utc = hb_dt.replace(tzinfo=datetime.timezone.utc if hb_dt.tzinfo is None else hb_dt.tzinfo)
+                    diff_sec = (now_utc - hb_utc).total_seconds()
                     
                     if 0 <= diff_sec <= 45:
                         is_bot_online = True

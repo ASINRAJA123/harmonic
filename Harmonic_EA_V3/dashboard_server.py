@@ -252,27 +252,77 @@ def get_trades(portfolio: str = "ALL", limit: int = 100):
 def get_patterns(portfolio: str = "ALL", limit: int = 20):
     try:
         if portfolio.upper() == "NIFTY":
-            nifty_patterns = [
-                {
-                    "symbol": "NIFTY 50 (ATM CE/PE)",
-                    "pattern": "09:30 HEDGED STRADDLE",
-                    "bull": True,
-                    "entry_price": "09:30:00 IST Entry",
-                    "stop_price": "40% Premium SL (Cost Lock on Winner)",
-                    "t1_price": "15:10 PM EOD Square-Off",
-                    "score": 0.95
-                },
-                {
-                    "symbol": "NIFTY OTM WINGS (CE +300 / PE -300)",
-                    "pattern": "OPTION A MARGIN HEDGE",
-                    "bull": True,
-                    "entry_price": "Rs 2.0 - Rs 4.0",
-                    "stop_price": "Risk Shield Active",
-                    "t1_price": "65% Margin Discount",
-                    "score": 1.00
-                }
+            csv_paths = [
+                os.path.join(os.path.dirname(__file__), "data", "angel_contract_notes.csv"),
+                os.path.join(os.path.dirname(__file__), "scratch", "NIFTY_ANGEL_BOT", "data", "angel_contract_notes.csv"),
+                os.path.join(os.path.dirname(__file__), "NIFTY_ANGEL_BOT", "data", "angel_contract_notes.csv")
             ]
-            return parse_json(nifty_patterns)
+            latest_row = None
+            for cp in csv_paths:
+                if os.path.exists(cp):
+                    import csv
+                    with open(cp, 'r') as f:
+                        reader = list(csv.DictReader(f))
+                        if reader:
+                            latest_row = reader[-1]
+                            break
+                            
+            if latest_row:
+                ce_strike = latest_row.get('ATM_CE', '24200')
+                pe_strike = latest_row.get('ATM_PE', '24200')
+                ce_entry = float(latest_row.get('CE_Entry', 91.9))
+                pe_entry = float(latest_row.get('PE_Entry', 91.9))
+                ce_status = latest_row.get('CE_Status', 'RUNNING')
+                pe_status = latest_row.get('PE_Status', 'RUNNING')
+                date_str = latest_row.get('Date', 'Today')
+                spot_val = latest_row.get('Spot_930', '24,175')
+                
+                nifty_legs = [
+                    {
+                        "symbol": f"NIFTY {ce_strike} CE (Short Call)",
+                        "pattern": f"Sold @ Rs {ce_entry:.2f}",
+                        "is_option": True,
+                        "entry_price": f"Rs {ce_entry:.2f}",
+                        "stop_price": f"Rs {ce_entry*1.4:.2f} (40% SL)",
+                        "t1_price": f"Exit: Rs {float(latest_row.get('CE_Exit', 36.8)):.2f}",
+                        "badge": ce_status,
+                        "badge_color": "var(--success)" if "EXPIRED" in ce_status or "CLOSED" in ce_status else "var(--cyan)"
+                    },
+                    {
+                        "symbol": f"NIFTY {pe_strike} PE (Short Put)",
+                        "pattern": f"Sold @ Rs {pe_entry:.2f}",
+                        "is_option": True,
+                        "entry_price": f"Rs {pe_entry:.2f}",
+                        "stop_price": f"Rs {pe_entry*1.4:.2f} (40% SL)",
+                        "t1_price": f"Exit: Rs {float(latest_row.get('PE_Exit', 36.8)):.2f}",
+                        "badge": pe_status,
+                        "badge_color": "var(--success)" if "EXPIRED" in pe_status or "CLOSED" in pe_status else "var(--cyan)"
+                    },
+                    {
+                        "symbol": f"Option A Margin Wings (±300 pts)",
+                        "pattern": "Risk Shield & Margin Benefit",
+                        "is_option": True,
+                        "entry_price": "Rs 3.20 (OTM Wings)",
+                        "stop_price": "Capped Risk Protection",
+                        "t1_price": "SEBI 65% Margin Discount",
+                        "badge": "LOCKED",
+                        "badge_color": "var(--primary)"
+                    }
+                ]
+                return parse_json(nifty_legs)
+            else:
+                return parse_json([
+                    {
+                        "symbol": "NIFTY 50 (09:30 AM Option Selector)",
+                        "pattern": "Automated ATM Strike Selection",
+                        "is_option": True,
+                        "entry_price": "Triggers at 09:30:00 IST",
+                        "stop_price": "40% Premium SL",
+                        "t1_price": "15:10 PM Square-off",
+                        "badge": "STANDBY ⏳",
+                        "badge_color": "var(--warning)"
+                    }
+                ])
             
         query = {}
         if portfolio.upper() == "BTC":
@@ -1360,7 +1410,19 @@ HTML_CONTENT = """<!DOCTYPE html>
                 const pats = await resPats.json();
                 const patFeed = document.getElementById('patternsFeed');
                 if (Array.isArray(pats) && pats.length > 0) {
-                    patFeed.innerHTML = pats.map(p => `
+                    patFeed.innerHTML = pats.map(p => {
+                        if (p.is_option) {
+                            return `
+                            <div class="pattern-card">
+                                <div>
+                                    <div style="font-weight: 700; font-size: 13px;">${p.symbol} • <span style="color: var(--cyan);">${p.pattern}</span></div>
+                                    <div style="font-size: 11px; color: var(--text-muted); margin-top: 2px;">Entry: ${p.entry_price} | SL: ${p.stop_price} | ${p.t1_price}</div>
+                                </div>
+                                <span class="tag" style="background: rgba(255,255,255,0.08); color: ${p.badge_color || 'var(--primary)'}; font-weight: bold;">${p.badge || 'ACTIVE'}</span>
+                            </div>
+                            `;
+                        }
+                        return `
                         <div class="pattern-card">
                             <div>
                                 <div style="font-weight: 700; font-size: 13px;">${p.symbol} • ${p.pattern} (${p.bull ? 'BULLISH' : 'BEARISH'})</div>
@@ -1368,7 +1430,8 @@ HTML_CONTENT = """<!DOCTYPE html>
                             </div>
                             <span class="tag" style="background: rgba(99, 102, 241, 0.2); color: var(--primary);">${(p.score * 100).toFixed(0)}% SCORE</span>
                         </div>
-                    `).join('');
+                        `;
+                    }).join('');
                 } else {
                     patFeed.innerHTML = `<div style="text-align: center; color: var(--text-muted); padding: 20px;">${currentPortfolio === 'NIFTY' ? '09:30 AM Strike Selector & Live Decay Monitor Active' : 'Scanning price geometry...'}</div>`;
                 }

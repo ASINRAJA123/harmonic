@@ -51,16 +51,16 @@ def get_status(portfolio: str = "FOREX"):
                 os.path.join(os.path.dirname(__file__), "scratch", "NIFTY_ANGEL_BOT", "data", "angel_equity_tracker.json"),
                 os.path.join(os.path.dirname(__file__), "NIFTY_ANGEL_BOT", "data", "angel_equity_tracker.json")
             ]
-            nifty_equity = 40000.0
-            active_lots = 1
+            nifty_equity = 100000.0
+            active_lots = 2
             last_time = None
             for p in state_paths:
                 if os.path.exists(p):
                     try:
                         with open(p, 'r') as f:
                             sdata = json.load(f)
-                            nifty_equity = float(sdata.get('current_equity', 40000.0))
-                            active_lots = int(sdata.get('active_lots', 1))
+                            nifty_equity = float(sdata.get('current_equity', 100000.0))
+                            active_lots = int(sdata.get('active_lots', 2))
                             last_time = sdata.get('last_updated')
                             break
                     except Exception:

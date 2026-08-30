@@ -73,12 +73,18 @@ def get_status(portfolio: str = "FOREX"):
                 (now_ist.hour < 15 or (now_ist.hour == 15 and now_ist.minute <= 10))
             )
             
+            # When market is closed or outside gate, open positions is 0 and full capital is free margin
+            is_pos_open = in_session and sdata.get('is_position_active', False) if 'sdata' in locals() else False
+            open_count = active_lots if is_pos_open else 0
+            free_margin = max(0.0, nifty_equity - (open_count * 40000.0))
+            
             nifty_state = {
                 "is_online": True,
                 "balance": nifty_equity,
                 "equity": nifty_equity,
-                "margin_free": max(0.0, nifty_equity - (active_lots * 40000.0)),
-                "open_positions": active_lots,
+                "margin_free": free_margin,
+                "open_positions": open_count,
+                "active_capacity_lots": active_lots,
                 "account_login": "Angel One SmartAPI (Free)",
                 "account_server": "NSE Equity Derivatives (NFO)",
                 "in_session": in_session,

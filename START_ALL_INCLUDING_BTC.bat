@@ -3,6 +3,9 @@ title Harmonic EA V3 - Multi-Portfolio Master Launcher
 echo ===================================================================
 echo 🚀 LAUNCHING MULTI-PORTFOLIO SYSTEMS (FOREX + BITCOIN + DASHBOARD)
 echo ===================================================================
+echo 🧹 TERMINATING EXISTING BOTS TO PREVENT DUPLICATES...
+call STOP_ALL_INCLUDING_BTC.bat
+
 echo 1. Starting Forex/Gold 6-Pair Trading Bot in the Background...
 wscript.exe START_BOT_BACKGROUND.vbs
 timeout /t 2 >nul

@@ -375,18 +375,18 @@ def open_harmonic_trade(symbol, pattern, current_bid, current_ask):
     order_type = mt5.ORDER_TYPE_BUY if pattern.bull else mt5.ORDER_TYPE_SELL
     entry_price = current_ask if pattern.bull else current_bid
 
-    t1_dist = abs(pattern.t1_price - pattern.entry_price)
-    t2_dist = abs(pattern.t2_price - pattern.entry_price)
-    sl_dist = abs(pattern.stop_price - pattern.entry_price)
+    # RIGID INSTITUTIONAL TARGETS
+    sl_price = round(pattern.stop_price, sym_info.digits)
+    tp1_price = round(pattern.t1_price, sym_info.digits)
+    tp2_price = round(pattern.t2_price, sym_info.digits)
 
-    if pattern.bull:
-        sl_price = round(entry_price - sl_dist, sym_info.digits)
-        tp1_price = round(entry_price + t1_dist, sym_info.digits)
-        tp2_price = round(entry_price + t2_dist, sym_info.digits)
-    else:
-        sl_price = round(entry_price + sl_dist, sym_info.digits)
-        tp1_price = round(entry_price - t1_dist, sym_info.digits)
-        tp2_price = round(entry_price - t2_dist, sym_info.digits)
+    # LATE ENTRY GATE PROTECTION
+    if pattern.bull and entry_price >= tp1_price:
+        log_msg(f"[{symbol}] Trade skipped: Late Entry ({entry_price}) already breached geometric TP1 ({tp1_price}).", level="TRADE")
+        return False
+    if not pattern.bull and entry_price <= tp1_price:
+        log_msg(f"[{symbol}] Trade skipped: Late Entry ({entry_price}) already breached geometric TP1 ({tp1_price}).", level="TRADE")
+        return False
 
     lot_size = calculate_lot_size(symbol, pattern.bull, entry_price, sl_price)
     comment = f"{TRADE_COMMENT_PREFIX}_{pattern.pattern_type[:3]}_{'B' if pattern.bull else 'S'}"
@@ -659,9 +659,19 @@ def run_live_btc_bot(session_filter=SESSION_FILTER_ENABLED):
                         patterns = scan_live_patterns(sym)
                         if patterns:
                             best_pat = patterns[0]
+                            
+                            # Cache Check
+                            pat_signature = f"{sym}_{best_pat.pattern_type}_{best_pat.bull}_{best_pat.d_price:.5f}_{best_pat.x_price:.5f}"
+                            if pat_signature in traded_patterns_cache:
+                                continue
+                                
                             tick = mt5.symbol_info_tick(sym)
                             if tick:
-                                open_harmonic_trade(sym, best_pat, tick.bid, tick.ask)
+                                success = open_harmonic_trade(sym, best_pat, tick.bid, tick.ask)
+                                if success:
+                                    traded_patterns_cache.add(pat_signature)
+                                    if len(traded_patterns_cache) > 200:
+                                        traded_patterns_cache.pop()
 
             consecutive_errors = 0
 

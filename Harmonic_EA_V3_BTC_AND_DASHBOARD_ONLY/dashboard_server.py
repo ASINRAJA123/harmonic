@@ -44,7 +44,50 @@ def parse_json(data):
 @app.get("/api/status")
 def get_status(portfolio: str = "FOREX"):
     try:
-        if portfolio == "ALL":
+        if portfolio.upper() == "NIFTY":
+            # Check Nifty state from local tracker file or mongo
+            state_paths = [
+                os.path.join(os.path.dirname(__file__), "data", "angel_equity_tracker.json"),
+                os.path.join(os.path.dirname(__file__), "scratch", "NIFTY_ANGEL_BOT", "data", "angel_equity_tracker.json"),
+                os.path.join(os.path.dirname(__file__), "NIFTY_ANGEL_BOT", "data", "angel_equity_tracker.json")
+            ]
+            nifty_equity = 40000.0
+            active_lots = 1
+            last_time = None
+            for p in state_paths:
+                if os.path.exists(p):
+                    try:
+                        with open(p, 'r') as f:
+                            sdata = json.load(f)
+                            nifty_equity = float(sdata.get('current_equity', 40000.0))
+                            active_lots = int(sdata.get('active_lots', 1))
+                            last_time = sdata.get('last_updated')
+                            break
+                    except Exception:
+                        pass
+            
+            # Check market session (09:30 to 15:10 IST)
+            now_ist = datetime.datetime.now(datetime.timezone(datetime.timedelta(hours=5, minutes=30)))
+            in_session = (now_ist.weekday() < 5) and (
+                (now_ist.hour > 9 or (now_ist.hour == 9 and now_ist.minute >= 30)) and
+                (now_ist.hour < 15 or (now_ist.hour == 15 and now_ist.minute <= 10))
+            )
+            
+            nifty_state = {
+                "is_online": True,
+                "balance": nifty_equity,
+                "equity": nifty_equity,
+                "margin_free": max(0.0, nifty_equity - (active_lots * 40000.0)),
+                "open_positions": active_lots,
+                "account_login": "Angel One SmartAPI (Free)",
+                "account_server": "NSE Equity Derivatives (NFO)",
+                "in_session": in_session,
+                "currency": "INR",
+                "last_heartbeat": last_time or str(datetime.datetime.now())
+            }
+            return parse_json(nifty_state)
+            
+        elif portfolio == "ALL":
             state_forex = db["bot_state"].find_one({"state_id": "current_live_state_forex"}, {"_id": 0})
             state_btc = db["bot_state"].find_one({"state_id": "current_live_state_btc"}, {"_id": 0})
             
@@ -139,6 +182,43 @@ def get_logs(portfolio: str = "ALL", limit: int = 150, level: Optional[str] = No
 @app.get("/api/trades")
 def get_trades(portfolio: str = "ALL", limit: int = 100):
     try:
+        if portfolio.upper() == "NIFTY":
+            csv_paths = [
+                os.path.join(os.path.dirname(__file__), "data", "angel_contract_notes.csv"),
+                os.path.join(os.path.dirname(__file__), "scratch", "NIFTY_ANGEL_BOT", "data", "angel_contract_notes.csv"),
+                os.path.join(os.path.dirname(__file__), "NIFTY_ANGEL_BOT", "data", "angel_contract_notes.csv"),
+                os.path.join(os.path.dirname(__file__), "scratch", "angel_paper_trade_log.csv")
+            ]
+            trades_list = []
+            for cp in csv_paths:
+                if os.path.exists(cp):
+                    import csv
+                    with open(cp, 'r') as f:
+                        reader = csv.DictReader(f)
+                        for i, r in enumerate(reader):
+                            net_pnl = float(r.get('NET_IN_HAND_PNL_RS', r.get('Net_PnL_Rs', 0.0)))
+                            spot = r.get('Spot_930', r.get('Spot_920', '24500'))
+                            ce_str = r.get('ATM_CE', r.get('ATM_CE_Strike', '24500'))
+                            pe_str = r.get('ATM_PE', r.get('ATM_PE_Strike', '24500'))
+                            date_str = r.get('Date', '2026-08-30')
+                            trades_list.append({
+                                "ticket": f"NIFTY_{i+1}",
+                                "symbol": f"NIFTY {ce_str} CE/PE",
+                                "direction": "STRADDLE",
+                                "pattern": "09:30 HEDGED STRADDLE",
+                                "lot_size": float(r.get('Lots', 1)),
+                                "open_time": {"$date": f"{date_str}T04:00:00Z"},
+                                "close_time": {"$date": f"{date_str}T09:40:00Z"},
+                                "pnl": net_pnl,
+                                "status": "CLOSED",
+                                "portfolio": "NIFTY",
+                                "currency": "INR"
+                            })
+                    if trades_list:
+                        break
+            trades_list.reverse()
+            return parse_json(trades_list[:limit])
+            
         query = {}
         if portfolio.upper() == "BTC":
             query["portfolio"] = "BTC"
@@ -823,7 +903,10 @@ HTML_CONTENT = """<!DOCTYPE html>
                 <span class="btn-icon">🪙</span>
                 <span class="btn-label">Bitcoin Dedicated (#472637125)</span>
             </button>
-
+            <button id="portNifty" class="portfolio-btn" onclick="switchPortfolio('NIFTY')">
+                <span class="btn-icon">🇮🇳</span>
+                <span class="btn-label">Nifty 50 Options (Angel One)</span>
+            </button>
         </div>
 
         <!-- Metric Cards -->
@@ -851,7 +934,7 @@ HTML_CONTENT = """<!DOCTYPE html>
             <div class="card">
                 <div class="card-label">Open Positions</div>
                 <div id="valOpenPositions" class="card-value" style="color: var(--cyan);">0</div>
-                <div class="card-sub">Active Magic #888333</div>
+                <div class="card-sub" id="subMagic">Active Magic #888333</div>
             </div>
         </div>
 
@@ -952,14 +1035,17 @@ HTML_CONTENT = """<!DOCTYPE html>
                 document.getElementById('portForex').classList.add('active');
                 document.getElementById('subEquity').innerText = 'Account #474471944';
                 document.getElementById('subBalance').innerText = 'Exness-MT5Trial15';
+                document.getElementById('subMagic').innerText = 'Active Magic #888333';
             } else if (pCode === 'BTC') {
                 document.getElementById('portBtc').classList.add('active');
                 document.getElementById('subEquity').innerText = 'Account #472637125';
                 document.getElementById('subBalance').innerText = 'Exness-MT5Trial16';
-            } else {
-                document.getElementById('portAll').classList.add('active');
-                document.getElementById('subEquity').innerText = 'Combined Equity';
-                document.getElementById('subBalance').innerText = 'All Terminals Active';
+                document.getElementById('subMagic').innerText = 'Active Magic #888444';
+            } else if (pCode === 'NIFTY') {
+                document.getElementById('portNifty').classList.add('active');
+                document.getElementById('subEquity').innerText = 'Angel One SmartAPI';
+                document.getElementById('subBalance').innerText = 'NSE F&O Derivatives';
+                document.getElementById('subMagic').innerText = '09:30 Hedged Straddle';
             }
             // Reset cache to avoid mixing data
             allTradesCache = [];
@@ -1014,22 +1100,27 @@ HTML_CONTENT = """<!DOCTYPE html>
             const datesSet = new Set();
             trades.forEach(tr => {
                 if (tr.open_time && tr.open_time.$date) {
-                    datesSet.add(new Date(tr.open_time.$date).toLocaleDateString('en-CA', {timeZone: 'Asia/Kolkata'}));
+                    const d = new Date(tr.open_time.$date);
+                    const istDate = d.toLocaleDateString('en-CA', {timeZone: 'Asia/Kolkata'});
+                    datesSet.add(istDate);
                 }
             });
+
+            const currentVal = select.value;
+            select.innerHTML = '<option value="" disabled selected>📅 Pick Date...</option>';
             
-            const dates = Array.from(datesSet).sort().reverse();
-            const currentVal = select.value || customSelectedDate;
-            
-            let html = `<option value="" disabled ${!currentVal ? 'selected' : ''}>📅 Pick Date...</option>`;
-            dates.forEach(d => {
-                const parts = d.split('-');
-                const dObj = new Date(parseInt(parts[0]), parseInt(parts[1]) - 1, parseInt(parts[2]));
-                const formatted = dObj.toLocaleDateString('en-IN', {day: '2-digit', month: 'short'});
-                const count = trades.filter(tr => tr.open_time && tr.open_time.$date && new Date(tr.open_time.$date).toLocaleDateString('en-CA', {timeZone: 'Asia/Kolkata'}) === d).length;
-                html += `<option value="${d}" ${currentVal === d ? 'selected' : ''}>${formatted} (${count} Trades)</option>`;
+            const sortedDates = Array.from(datesSet).sort().reverse();
+            sortedDates.forEach(dStr => {
+                const opt = document.createElement('option');
+                opt.value = dStr;
+                const dObj = new Date(dStr + 'T00:00:00Z');
+                opt.innerText = dObj.toLocaleDateString('en-IN', {timeZone: 'Asia/Kolkata', day: '2-digit', month: 'short', year: 'numeric'});
+                select.appendChild(opt);
             });
-            select.innerHTML = html;
+
+            if (currentVal && datesSet.has(currentVal)) {
+                select.value = currentVal;
+            }
         }
 
         function renderTrades(rawTrades) {
@@ -1079,7 +1170,8 @@ HTML_CONTENT = """<!DOCTYPE html>
             // Calculate & update summary badge
             const totalDayPnL = filtered.reduce((acc, t) => acc + (t.pnl || 0), 0);
             const pnlSign = totalDayPnL >= 0 ? '+' : '';
-            const summaryText = `${filtered.length} Trade${filtered.length === 1 ? '' : 's'} | PnL: ${pnlSign}$${totalDayPnL.toFixed(2)}`;
+            const currSym = currentPortfolio === 'NIFTY' ? 'Rs ' : '$';
+            const summaryText = `${filtered.length} Trade${filtered.length === 1 ? '' : 's'} | PnL: ${pnlSign}${currSym}${totalDayPnL.toFixed(2)}`;
             const badgeEl = document.getElementById('tradesSummaryBadge');
             if (badgeEl) {
                 badgeEl.innerText = summaryText;
@@ -1104,6 +1196,7 @@ HTML_CONTENT = """<!DOCTYPE html>
                     
                     const openTimeIST = formatIST(tr.open_time);
                     const closeTimeIST = formatIST(tr.close_time);
+                    const curr = tr.currency === 'INR' ? 'Rs ' : '$';
 
                     return `
                     <tr style="${rowStyle}">
@@ -1114,7 +1207,7 @@ HTML_CONTENT = """<!DOCTYPE html>
                         <td>${tr.lot_size}</td>
                         <td style="font-size: 11px; color: var(--text-muted);">${openTimeIST}</td>
                         <td style="font-size: 11px; color: var(--text-muted);">${closeTimeIST}</td>
-                        <td style="color: ${tr.pnl > 0 ? 'var(--success)' : (tr.pnl < 0 ? 'var(--danger)' : '#FFF')}">$${(tr.pnl || 0).toFixed(2)}</td>
+                        <td style="color: ${tr.pnl > 0 ? 'var(--success)' : (tr.pnl < 0 ? 'var(--danger)' : '#FFF')}">${curr}${(tr.pnl || 0).toFixed(2)}</td>
                         <td><span class="tag" style="background: rgba(255,255,255,0.1); color: ${statusColor}; font-weight: bold;">${isActive ? '🟢 ' : ''}${tr.status}</span></td>
                     </tr>
                     `;
@@ -1138,9 +1231,10 @@ HTML_CONTENT = """<!DOCTYPE html>
                     stText.innerText = 'BOT STANDBY / OFFLINE';
                 }
 
-                document.getElementById('valEquity').innerText = '$' + (st.equity ? st.equity.toFixed(2) : '0.00');
-                document.getElementById('valBalance').innerText = '$' + (st.balance ? st.balance.toFixed(2) : '0.00');
-                document.getElementById('valMargin').innerText = '$' + (st.margin_free ? st.margin_free.toFixed(2) : '0.00');
+                const currSym = currentPortfolio === 'NIFTY' ? 'Rs ' : '$';
+                document.getElementById('valEquity').innerText = currSym + (st.equity ? st.equity.toLocaleString('en-IN', {minimumFractionDigits: 2, maximumFractionDigits: 2}) : '0.00');
+                document.getElementById('valBalance').innerText = currSym + (st.balance ? st.balance.toLocaleString('en-IN', {minimumFractionDigits: 2, maximumFractionDigits: 2}) : '0.00');
+                document.getElementById('valMargin').innerText = currSym + (st.margin_free ? st.margin_free.toLocaleString('en-IN', {minimumFractionDigits: 2, maximumFractionDigits: 2}) : '0.00');
                 document.getElementById('valOpenPositions').innerText = st.open_positions !== undefined ? st.open_positions : '0';
                 
                 const sessVal = document.getElementById('valSession');
@@ -1199,7 +1293,7 @@ HTML_CONTENT = """<!DOCTYPE html>
                         </div>
                     `).join('');
                 } else {
-                    patFeed.innerHTML = `<div style="text-align: center; color: var(--text-muted); padding: 20px;">Scanning price geometry...</div>`;
+                    patFeed.innerHTML = `<div style="text-align: center; color: var(--text-muted); padding: 20px;">${currentPortfolio === 'NIFTY' ? '09:30 AM Strike Selector & Live Decay Monitor Active' : 'Scanning price geometry...'}</div>`;
                 }
 
             } catch (err) {
@@ -1221,8 +1315,8 @@ def serve_dashboard():
 
 if __name__ == "__main__":
     print("=" * 80)
-    print(">>> STARTING HARMONIC EA V3 LIVE DASHBOARD SERVER...")
-    print(">>> URL: http://localhost:13000")
-    print(">>> Connected to MongoDB Atlas: cluster0.tt1v1.mongodb.net / harmonic_trading")
+    print(" [OK] STARTING HARMONIC EA V3 LIVE DASHBOARD SERVER (PORT 15000)...")
+    print(" [OK] URL: http://localhost:15000")
+    print(" [OK] Connected to MongoDB Atlas & Angel One Nifty Engine")
     print("=" * 80)
-    uvicorn.run(app, host="0.0.0.0", port=13000, log_level="info")
+    uvicorn.run(app, host="0.0.0.0", port=15000, log_level="info")

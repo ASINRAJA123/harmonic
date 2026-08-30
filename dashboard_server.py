@@ -85,13 +85,27 @@ def get_status(portfolio: str = "FOREX"):
                 (now_ist.hour < 15 or (now_ist.hour == 15 and now_ist.minute <= 10))
             )
             
-            # When market is closed or outside gate, open positions is 0 and full capital is free margin
-            is_pos_open = in_session and sdata.get('is_position_active', False) if 'sdata' in locals() else False
-            open_count = active_lots if is_pos_open else 0
-            free_margin = max(0.0, nifty_equity - (open_count * 40000.0))
-            
+            # Calculate online status dynamically based on 45-second heartbeat window
+            is_bot_online = False
+            if last_time:
+                try:
+                    if isinstance(last_time, datetime.datetime):
+                        hb_dt = last_time
+                    else:
+                        hb_dt = datetime.datetime.fromisoformat(str(last_time).replace('Z', ''))
+                    
+                    if hb_dt.tzinfo is None:
+                        diff_sec = (datetime.datetime.now() - hb_dt).total_seconds()
+                    else:
+                        diff_sec = (datetime.datetime.now(datetime.timezone.utc) - hb_dt).total_seconds()
+                    
+                    if 0 <= diff_sec <= 45:
+                        is_bot_online = True
+                except Exception:
+                    is_bot_online = False
+
             nifty_state = {
-                "is_online": True,
+                "is_online": is_bot_online,
                 "balance": nifty_equity,
                 "equity": nifty_equity,
                 "margin_free": free_margin,

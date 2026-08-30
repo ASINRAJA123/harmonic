@@ -78,12 +78,16 @@ def get_status(portfolio: str = "FOREX"):
                         except Exception:
                             pass
             
-            # Check market session (09:30 to 15:10 IST)
+            # Check market session (09:30 to 15:10 IST, Monday-Friday)
             now_ist = datetime.datetime.now(datetime.timezone(datetime.timedelta(hours=5, minutes=30)))
             in_session = (now_ist.weekday() < 5) and (
                 (now_ist.hour > 9 or (now_ist.hour == 9 and now_ist.minute >= 30)) and
                 (now_ist.hour < 15 or (now_ist.hour == 15 and now_ist.minute <= 10))
             )
+            
+            # Dynamic Open Positions and Free Margin
+            open_count = 0
+            free_margin = nifty_equity
             
             # Calculate online status dynamically based on 45-second heartbeat window
             is_bot_online = False
@@ -189,16 +193,6 @@ def get_status(portfolio: str = "FOREX"):
 @app.get("/api/logs")
 def get_logs(portfolio: str = "ALL", limit: int = 150, level: Optional[str] = None, search: Optional[str] = None):
     try:
-        if portfolio.upper() == "NIFTY":
-            now_iso = datetime.datetime.now().isoformat() + "Z"
-            nifty_logs = [
-                {"timestamp": {"$date": now_iso}, "level": "INFO", "message": "[NIFTY] 09:30 AM Hedged Straddle Engine Initialized & Active"},
-                {"timestamp": {"$date": now_iso}, "level": "INFO", "message": "[NIFTY] Anti-Whipsaw Breakeven Lock: ENABLED | Stop-Loss: 40% per leg"},
-                {"timestamp": {"$date": now_iso}, "level": "INFO", "message": "[NIFTY] SEBI Option A Margin Benefit Active: Rs 40,000 / Lot (Auto-Compounding: ON)"},
-                {"timestamp": {"$date": now_iso}, "level": "INFO", "message": "[NIFTY] Session Gate: 09:30 - 15:10 IST | Brokerage: Angel One SmartAPI (Free)"}
-            ]
-            return parse_json(nifty_logs)
-            
         one_hour_ago = datetime.datetime.now(datetime.timezone.utc) - datetime.timedelta(hours=1)
         query = {"timestamp": {"$gte": one_hour_ago}}
         
@@ -207,6 +201,8 @@ def get_logs(portfolio: str = "ALL", limit: int = 150, level: Optional[str] = No
             
         if portfolio.upper() == "BTC":
             query["message"] = {"$regex": r"^\[BTC\]", "$options": "i"}
+        elif portfolio.upper() == "NIFTY":
+            query["message"] = {"$regex": r"^\[NIFTY\]", "$options": "i"}
         elif portfolio.upper() == "FOREX":
             query["message"] = {"$regex": r"^(?!\[BTC\]|\[NIFTY\])", "$options": "i"}
             
@@ -224,46 +220,11 @@ def get_logs(portfolio: str = "ALL", limit: int = 150, level: Optional[str] = No
 @app.get("/api/trades")
 def get_trades(portfolio: str = "ALL", limit: int = 100):
     try:
-        if portfolio.upper() == "NIFTY":
-            csv_paths = [
-                os.path.join(os.path.dirname(__file__), "data", "angel_contract_notes.csv"),
-                os.path.join(os.path.dirname(__file__), "scratch", "NIFTY_ANGEL_BOT", "data", "angel_contract_notes.csv"),
-                os.path.join(os.path.dirname(__file__), "NIFTY_ANGEL_BOT", "data", "angel_contract_notes.csv"),
-                os.path.join(os.path.dirname(__file__), "scratch", "angel_paper_trade_log.csv")
-            ]
-            trades_list = []
-            for cp in csv_paths:
-                if os.path.exists(cp):
-                    import csv
-                    with open(cp, 'r') as f:
-                        reader = csv.DictReader(f)
-                        for i, r in enumerate(reader):
-                            net_pnl = float(r.get('NET_IN_HAND_PNL_RS', r.get('Net_PnL_Rs', 0.0)))
-                            spot = r.get('Spot_930', r.get('Spot_920', '24500'))
-                            ce_str = r.get('ATM_CE', r.get('ATM_CE_Strike', '24500'))
-                            pe_str = r.get('ATM_PE', r.get('ATM_PE_Strike', '24500'))
-                            date_str = r.get('Date', '2026-08-30')
-                            trades_list.append({
-                                "ticket": f"NIFTY_{i+1}",
-                                "symbol": f"NIFTY {ce_str} CE/PE",
-                                "direction": "STRADDLE",
-                                "pattern": "09:30 HEDGED STRADDLE",
-                                "lot_size": float(r.get('Lots', 1)),
-                                "open_time": {"$date": f"{date_str}T04:00:00Z"},
-                                "close_time": {"$date": f"{date_str}T09:40:00Z"},
-                                "pnl": net_pnl,
-                                "status": "CLOSED",
-                                "portfolio": "NIFTY",
-                                "currency": "INR"
-                            })
-                    if trades_list:
-                        break
-            trades_list.reverse()
-            return parse_json(trades_list[:limit])
-            
         query = {}
         if portfolio.upper() == "BTC":
             query["portfolio"] = "BTC"
+        elif portfolio.upper() == "NIFTY":
+            query["portfolio"] = "NIFTY"
         elif portfolio.upper() == "FOREX":
             query["$or"] = [{"portfolio": "FOREX"}, {"portfolio": {"$exists": False}}]
             
@@ -278,77 +239,10 @@ def get_trades(portfolio: str = "ALL", limit: int = 100):
 def get_patterns(portfolio: str = "ALL", limit: int = 20):
     try:
         if portfolio.upper() == "NIFTY":
-            csv_paths = [
-                os.path.join(os.path.dirname(__file__), "data", "angel_contract_notes.csv"),
-                os.path.join(os.path.dirname(__file__), "scratch", "NIFTY_ANGEL_BOT", "data", "angel_contract_notes.csv"),
-                os.path.join(os.path.dirname(__file__), "NIFTY_ANGEL_BOT", "data", "angel_contract_notes.csv")
-            ]
-            latest_row = None
-            for cp in csv_paths:
-                if os.path.exists(cp):
-                    import csv
-                    with open(cp, 'r') as f:
-                        reader = list(csv.DictReader(f))
-                        if reader:
-                            latest_row = reader[-1]
-                            break
-                            
-            if latest_row:
-                ce_strike = latest_row.get('ATM_CE', '24200')
-                pe_strike = latest_row.get('ATM_PE', '24200')
-                ce_entry = float(latest_row.get('CE_Entry', 91.9))
-                pe_entry = float(latest_row.get('PE_Entry', 91.9))
-                ce_status = latest_row.get('CE_Status', 'RUNNING')
-                pe_status = latest_row.get('PE_Status', 'RUNNING')
-                date_str = latest_row.get('Date', 'Today')
-                spot_val = latest_row.get('Spot_930', '24,175')
-                
-                nifty_legs = [
-                    {
-                        "symbol": f"NIFTY {ce_strike} CE (Short Call)",
-                        "pattern": f"Sold @ Rs {ce_entry:.2f}",
-                        "is_option": True,
-                        "entry_price": f"Rs {ce_entry:.2f}",
-                        "stop_price": f"Rs {ce_entry*1.4:.2f} (40% SL)",
-                        "t1_price": f"Exit: Rs {float(latest_row.get('CE_Exit', 36.8)):.2f}",
-                        "badge": ce_status,
-                        "badge_color": "var(--success)" if "EXPIRED" in ce_status or "CLOSED" in ce_status else "var(--cyan)"
-                    },
-                    {
-                        "symbol": f"NIFTY {pe_strike} PE (Short Put)",
-                        "pattern": f"Sold @ Rs {pe_entry:.2f}",
-                        "is_option": True,
-                        "entry_price": f"Rs {pe_entry:.2f}",
-                        "stop_price": f"Rs {pe_entry*1.4:.2f} (40% SL)",
-                        "t1_price": f"Exit: Rs {float(latest_row.get('PE_Exit', 36.8)):.2f}",
-                        "badge": pe_status,
-                        "badge_color": "var(--success)" if "EXPIRED" in pe_status or "CLOSED" in pe_status else "var(--cyan)"
-                    },
-                    {
-                        "symbol": f"Option A Margin Wings (±300 pts)",
-                        "pattern": "Risk Shield & Margin Benefit",
-                        "is_option": True,
-                        "entry_price": "Rs 3.20 (OTM Wings)",
-                        "stop_price": "Capped Risk Protection",
-                        "t1_price": "SEBI 65% Margin Discount",
-                        "badge": "LOCKED",
-                        "badge_color": "var(--primary)"
-                    }
-                ]
-                return parse_json(nifty_legs)
-            else:
-                return parse_json([
-                    {
-                        "symbol": "NIFTY 50 (09:30 AM Option Selector)",
-                        "pattern": "Automated ATM Strike Selection",
-                        "is_option": True,
-                        "entry_price": "Triggers at 09:30:00 IST",
-                        "stop_price": "40% Premium SL",
-                        "t1_price": "15:10 PM Square-off",
-                        "badge": "STANDBY ⏳",
-                        "badge_color": "var(--warning)"
-                    }
-                ])
+            query = {"portfolio": "NIFTY"}
+            patterns_cursor = db["patterns"].find(query).sort("timestamp", -1).limit(limit)
+            patterns_list = list(patterns_cursor)
+            return parse_json(patterns_list)
             
         query = {}
         if portfolio.upper() == "BTC":

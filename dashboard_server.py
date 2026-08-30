@@ -233,7 +233,7 @@ def get_trades(portfolio: str = "ALL", limit: int = 100):
         if portfolio.upper() == "BTC":
             query["portfolio"] = "BTC"
         elif portfolio.upper() == "FOREX":
-            query["$or": [{"portfolio": "FOREX"}, {"portfolio": {"$exists": False}}]}
+            query["$or"] = [{"portfolio": "FOREX"}, {"portfolio": {"$exists": False}}]
             
         trades_cursor = db["trades"].find(query).sort("open_time", -1).limit(limit)
         trades_list = list(trades_cursor)
@@ -272,7 +272,7 @@ def get_patterns(portfolio: str = "ALL", limit: int = 20):
         if portfolio.upper() == "BTC":
             query["portfolio"] = "BTC"
         elif portfolio.upper() == "FOREX":
-            query["$or": [{"portfolio": "FOREX"}, {"portfolio": {"$exists": False}}]}
+            query["$or"] = [{"portfolio": "FOREX"}, {"portfolio": {"$exists": False}}]
             
         patterns_cursor = db["patterns"].find(query).sort("timestamp", -1).limit(limit)
         patterns_list = list(patterns_cursor)

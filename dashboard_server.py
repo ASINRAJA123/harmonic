@@ -45,26 +45,38 @@ def parse_json(data):
 def get_status(portfolio: str = "FOREX"):
     try:
         if portfolio.upper() == "NIFTY":
-            # Check Nifty state from local tracker file or mongo
-            state_paths = [
-                os.path.join(os.path.dirname(__file__), "data", "angel_equity_tracker.json"),
-                os.path.join(os.path.dirname(__file__), "scratch", "NIFTY_ANGEL_BOT", "data", "angel_equity_tracker.json"),
-                os.path.join(os.path.dirname(__file__), "NIFTY_ANGEL_BOT", "data", "angel_equity_tracker.json")
-            ]
             nifty_equity = 100000.0
             active_lots = 2
             last_time = None
-            for p in state_paths:
-                if os.path.exists(p):
-                    try:
-                        with open(p, 'r') as f:
-                            sdata = json.load(f)
-                            nifty_equity = float(sdata.get('current_equity', 100000.0))
-                            active_lots = int(sdata.get('active_lots', 2))
-                            last_time = sdata.get('last_updated')
-                            break
-                    except Exception:
-                        pass
+            
+            # 1. Check MongoDB Atlas Cloud State (for Render and global sync)
+            try:
+                st_mongo = db["bot_state"].find_one({"state_id": "current_live_state_nifty"}, {"_id": 0})
+                if st_mongo and "equity" in st_mongo:
+                    nifty_equity = float(st_mongo["equity"])
+                    active_lots = int(st_mongo.get("active_capacity_lots", st_mongo.get("active_lots", 2)))
+                    last_time = st_mongo.get("last_heartbeat")
+            except Exception:
+                st_mongo = None
+                
+            # 2. Check local file state fallback
+            if not last_time:
+                state_paths = [
+                    os.path.join(os.path.dirname(__file__), "data", "angel_equity_tracker.json"),
+                    os.path.join(os.path.dirname(__file__), "scratch", "NIFTY_ANGEL_BOT", "data", "angel_equity_tracker.json"),
+                    os.path.join(os.path.dirname(__file__), "NIFTY_ANGEL_BOT", "data", "angel_equity_tracker.json")
+                ]
+                for p in state_paths:
+                    if os.path.exists(p):
+                        try:
+                            with open(p, 'r') as f:
+                                sdata = json.load(f)
+                                nifty_equity = float(sdata.get('current_equity', 100000.0))
+                                active_lots = int(sdata.get('active_lots', 2))
+                                last_time = sdata.get('last_updated')
+                                break
+                        except Exception:
+                            pass
             
             # Check market session (09:30 to 15:10 IST)
             now_ist = datetime.datetime.now(datetime.timezone(datetime.timedelta(hours=5, minutes=30)))

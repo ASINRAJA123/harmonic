@@ -51,7 +51,9 @@ def get_status(portfolio: str = "FOREX"):
             
             # 1. Check MongoDB Atlas Cloud State (for Render and global sync)
             try:
-                st_mongo = db["bot_state"].find_one({"state_id": "current_live_state_nifty"}, {"_id": 0})
+                st_mongo = db["bot_state"].find_one({"state_id": "current_live_state_nifty_live"}, {"_id": 0})
+                if not st_mongo or "equity" not in st_mongo:
+                    st_mongo = db["bot_state"].find_one({"state_id": "current_live_state_nifty"}, {"_id": 0})
                 if st_mongo and "equity" in st_mongo:
                     nifty_equity = float(st_mongo["equity"])
                     active_lots = int(st_mongo.get("active_capacity_lots", st_mongo.get("active_lots", 2)))
@@ -110,9 +112,11 @@ def get_status(portfolio: str = "FOREX"):
             nifty_state = {
                 "is_online": is_bot_online,
                 "balance": nifty_equity,
-                "equity": nifty_equity,
+                "equity": float(st_mongo.get("equity", nifty_equity)) if st_mongo else nifty_equity,
+                "pnl": float(st_mongo.get("floating_pnl", st_mongo.get("pnl", 0.0))) if st_mongo else 0.0,
+                "floating_pnl": float(st_mongo.get("floating_pnl", st_mongo.get("pnl", 0.0))) if st_mongo else 0.0,
                 "margin_free": free_margin,
-                "open_positions": open_count,
+                "open_positions": int(st_mongo.get("open_positions", open_count)) if st_mongo else open_count,
                 "active_capacity_lots": active_lots,
                 "account_login": "Angel One SmartAPI (Free)",
                 "account_server": "NSE Equity Derivatives (NFO)",
@@ -911,10 +915,6 @@ HTML_CONTENT = """<!DOCTYPE html>
                 <span class="btn-icon">🪙</span>
                 <span class="btn-label">Bitcoin Dedicated (#472637125)</span>
             </button>
-            <button id="portNifty" class="portfolio-btn" onclick="switchPortfolio('NIFTY')">
-                <span class="btn-icon">🇮🇳</span>
-                <span class="btn-label">Nifty 50 Options (Angel One)</span>
-            </button>
         </div>
 
         <!-- Metric Cards -->
@@ -1078,20 +1078,6 @@ HTML_CONTENT = """<!DOCTYPE html>
                 document.getElementById('subMagic').innerText = 'Active Magic #888444';
                 if (thPnL) thPnL.innerText = 'PnL ($)';
                 if (panelTitle) panelTitle.innerText = 'Recently Detected Harmonic Patterns (Bitcoin)';
-            } else if (pCode === 'NIFTY') {
-                document.getElementById('portNifty').classList.add('active');
-                if (lblEquity) lblEquity.innerText = 'Live Equity (INR)';
-                if (lblBalance) lblBalance.innerText = 'Balance (INR)';
-                document.getElementById('subEquity').innerText = 'Angel One SmartAPI';
-                document.getElementById('subBalance').innerText = 'NSE F&O Derivatives';
-                if (lblMargin) lblMargin.innerText = 'Buffer Capital (Free)';
-                if (subMargin) subMargin.innerText = 'SEBI Margin: Rs 40,000 / Lot';
-                if (lblSession) lblSession.innerText = 'Nifty Gate (09:30 - 15:10 IST)';
-                if (subSession) subSession.innerText = 'NSE Equity Derivatives Gate';
-                if (lblOpenPos) lblOpenPos.innerText = 'Active Basket Lots';
-                document.getElementById('subMagic').innerText = '09:30 Hedged Straddle';
-                if (thPnL) thPnL.innerText = 'PnL (Rs)';
-                if (panelTitle) panelTitle.innerText = 'Nifty 50 Options Multi-Leg Strategy Engine';
             }
             // Reset cache to avoid mixing data
             allTradesCache = [];

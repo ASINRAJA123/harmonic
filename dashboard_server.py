@@ -43,6 +43,11 @@ def ping():
         "message": "Harmonic EA V3 server is alive"
     }
 
+
+@app.head("/ping")
+def ping_head():
+    return Response(status_code=200)
+
 # Connect to MongoDB
 client = pymongo.MongoClient(MONGO_URI, serverSelectionTimeoutMS=5000)
 db = client[DB_NAME]

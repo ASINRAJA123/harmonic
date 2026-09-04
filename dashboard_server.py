@@ -33,6 +33,16 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+# ============================================================
+# SERVER HEALTH / PING
+# ============================================================
+@app.get("/ping")
+def ping():
+    return {
+        "status": "ok",
+        "message": "Harmonic EA V3 server is alive"
+    }
+
 # Connect to MongoDB
 client = pymongo.MongoClient(MONGO_URI, serverSelectionTimeoutMS=5000)
 db = client[DB_NAME]
